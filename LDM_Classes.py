@@ -15,7 +15,6 @@ import random
 import tensorflow as tf
 import os
 from torch.utils.data import Dataset
-
 class LabeledDataset(Dataset):
     def __init__(self, images, labels, transform=None):
         self.images = images
@@ -24,7 +23,7 @@ class LabeledDataset(Dataset):
 
     def __len__(self):
         return len(self.labels)
-    
+
     def __getitem__(self, idx):
         image = self.images[idx]
         label = self.labels[idx]
@@ -32,7 +31,25 @@ class LabeledDataset(Dataset):
         if self.transform:
             image = self.transform(image)
 
-        return image, label
+        return image[:, 0:32, 0:32], label
+
+# class LabeledDataset(Dataset):
+#     def __init__(self, images, labels, transform=None):
+#         self.images = images
+#         self.labels = labels
+#         self.transform = transform
+#
+#     def __len__(self):
+#         return len(self.labels)
+#     
+#     def __getitem__(self, idx):
+#         image = self.images[idx]
+#         label = self.labels[idx]
+#
+#         if self.transform:
+#             image = self.transform(image)
+#
+#         return image, label
 
 class LDM(pl.LightningModule):
     '''
