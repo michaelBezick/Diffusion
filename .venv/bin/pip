@@ -1,4 +1,4 @@
-#!/home/michael_bezick/Repos/Diffusion/.venv/bin/python3
+#!/home/michael_bezick/Repos/Energy_Encoders/.venv/bin/python3
 # -*- coding: utf-8 -*-
 import re
 import sys

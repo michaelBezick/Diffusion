@@ -1,4 +1,4 @@
 push:
-	git add .
-	git commit -m "Edis"
+	git add --all
+	git commit -m "Edits"
 	git push
