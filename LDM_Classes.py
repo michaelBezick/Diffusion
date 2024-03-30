@@ -343,6 +343,8 @@ class VAE(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         images, FOMs = batch
 
+        x = images
+
         mu, sigma = self.encode(images)
         epsilon = torch.randn_like(sigma)
         z_reparameterized = mu + torch.multiply(sigma, epsilon)
@@ -352,12 +354,29 @@ class VAE(pl.LightningModule):
         kl_divergence = -0.5 * torch.mean(
             1 + torch.log(sigma.pow(2)) - mu.pow(2) - sigma.pow(2)
         )
-        perceptual_loss = self.perceptual_loss(images, x_hat)
+        perceptual_loss = self.perceptual_loss(x, x_hat)
 
         loss = (
             perceptual_loss * self.perceptual_loss_scale
             + kl_divergence * self.kl_divergence_scale
         )
+
+        self.log("Perceptual Loss", perceptual_loss)
+        self.log("kl_divergence", kl_divergence)
+        self.log("Total loss", loss)
+
+        #logging generated images
+        sample_imgs_generated = x_hat[:30]
+        sample_imgs_original = x[:30]
+        gridGenerated = torchvision.utils.make_grid(sample_imgs_generated)
+        gridOriginal = torchvision.utils.make_grid(sample_imgs_original)
+
+        """Tensorboard logging"""
+
+        if self.global_step % 1000 == 0:
+            self.logger.experiment.add_image("Generated_images", gridGenerated, self.global_step)
+            self.logger.experiment.add_image("Original_images", gridOriginal, self.global_step)
+
 
         return loss
 
