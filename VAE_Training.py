@@ -6,6 +6,7 @@ import torch
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
+from torchmetrics.regression import kl_divergence
 
 from LDM_Classes import VAE, LabeledDataset
 
@@ -21,6 +22,8 @@ accelerator = "gpu"
 batch_size = 100
 epochs = 10_000
 lr = 1e-3
+perceptual_loss_scale = 1
+kl_divergence_scale = 0.3
 
 ##################################################
 
@@ -37,7 +40,7 @@ checkpoint_callback = ModelCheckpoint(filename="good", every_n_train_steps=300)
 
 torch.set_float32_matmul_precision("high")
 
-vae = VAE(in_channels=1, h_dim=128, batch_size=batch_size, lr=lr)
+vae = VAE(in_channels=1, h_dim=128, batch_size=batch_size, lr=lr, kl_divergence_scale=kl_divergence_scale, perceptual_loss_scale=perceptual_loss_scale)
 
 dataset = np.expand_dims(np.load("./Files/TPV_dataset.npy"), 1)
 normalizedDataset = (dataset - np.min(dataset)) / (np.max(dataset) - np.min(dataset))

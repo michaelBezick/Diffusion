@@ -265,8 +265,8 @@ class VAE(pl.LightningModule):
         h_dim=32,
         lr=1e-3,
         batch_size=100,
-        perceptual_loss_scale=1,
-        kl_divergence_scale=1,
+        perceptual_loss_scale=1.,
+        kl_divergence_scale=1.,
     ):
         super().__init__()
 
