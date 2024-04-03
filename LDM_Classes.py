@@ -71,7 +71,9 @@ class LDM(pl.LightningModule):
         self.batch_size = batch_size
         self.in_channels = in_channels
         self.latent_height = latent_height
+        self.height = latent_height
         self.latent_width = latent_width
+        self.width = latent_width
         self.num_steps = num_steps
         self.random_generator = MultivariateNormal(
             torch.zeros(latent_height * latent_width * in_channels),
@@ -605,7 +607,9 @@ class AttentionUNet(nn.Module):
         self.FOM_embedding_length = FOM_condition_vector_size
         self.batch_size = batch_size
         self.latent_height = latent_height
+        self.height = latent_height
         self.latent_width = latent_width
+        self.width = latent_width
         self.num_steps = num_steps
         self.embedder = SinusoidalPositionalEmbeddings(self.dim)
 
