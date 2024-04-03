@@ -49,8 +49,20 @@ class LDM(pl.LightningModule):
     pretrained VAE.
     """
 
+    """
+    New idea: use FOM to condition the LDM
+    """
+
     def __init__(
-        self, DDPM, VAE, in_channels, batch_size, num_steps, height, width, lr
+        self,
+        DDPM,
+        VAE,
+        in_channels,
+        batch_size,
+        num_steps,
+        latent_height,
+        latent_width,
+        lr,
     ):
         super().__init__()
         self.lr = lr
@@ -58,12 +70,12 @@ class LDM(pl.LightningModule):
         self.VAE = VAE
         self.batch_size = batch_size
         self.in_channels = in_channels
-        self.height = height
-        self.width = width
+        self.latent_height = latent_height
+        self.latent_width = latent_width
         self.num_steps = num_steps
         self.random_generator = MultivariateNormal(
-            torch.zeros(height * width * in_channels),
-            torch.eye(height * width * in_channels),
+            torch.zeros(latent_height * latent_width * in_channels),
+            torch.eye(latent_height * latent_width * in_channels),
         )
         self.beta_schedule = self.make_beta_schedule(num_steps, 1e-5, 0.02)
         self.alpha_schedule = torch.from_numpy(
@@ -98,11 +110,11 @@ class LDM(pl.LightningModule):
         # encoding to latent space
         x = images
         with torch.no_grad():
-            latent_encoding_logits = self.VAE.vae.encode(x)
+            latent_encoding = self.VAE.vae.encode(x)
 
-        latent_encoding_sample = torch.bernoulli(
-            latent_encoding_logits
-        )  # I don't think I need a gradient here
+        # latent_encoding_sample = torch.bernoulli(
+        #     latent_encoding_logits
+        # )  # I don't think I need a gradient here
         """
         Not doing VAE anymore, just VAE
         """
@@ -110,13 +122,13 @@ class LDM(pl.LightningModule):
         # z_reparameterized = mu + torch.multiply(sigma, epsilon)
 
         if self.global_step % 300 == 0:
-            latent_grid = torchvision.utils.make_grid(latent_encoding_sample)
+            latent_grid = torchvision.utils.make_grid(latent_encoding)
             self.logger.experiment.add_image(
                 "True latent grid", latent_grid, self.global_step
             )
 
         ### Creation of x_t, algorithm 1 of Ho et al.###
-        mu = torch.mul(torch.sqrt(alpha_bar_vector), latent_encoding_sample)
+        mu = torch.mul(torch.sqrt(alpha_bar_vector), latent_encoding)
         variance = torch.mul(
             torch.sqrt(torch.ones_like(alpha_bar_vector) - alpha_bar_vector), epsilon_0
         )
@@ -265,8 +277,8 @@ class VAE(pl.LightningModule):
         h_dim=32,
         lr=1e-3,
         batch_size=100,
-        perceptual_loss_scale=1.,
-        kl_divergence_scale=1.,
+        perceptual_loss_scale=1.0,
+        kl_divergence_scale=1.0,
     ):
         super().__init__()
 
@@ -365,7 +377,7 @@ class VAE(pl.LightningModule):
         self.log("kl_divergence", kl_divergence)
         self.log("Total loss", loss)
 
-        #logging generated images
+        # logging generated images
         sample_imgs_generated = x_hat[:30]
         sample_imgs_original = x[:30]
         gridGenerated = torchvision.utils.make_grid(sample_imgs_generated)
@@ -374,9 +386,12 @@ class VAE(pl.LightningModule):
         """Tensorboard logging"""
 
         if self.global_step % 1000 == 0:
-            self.logger.experiment.add_image("Generated_images", gridGenerated, self.global_step)
-            self.logger.experiment.add_image("Original_images", gridOriginal, self.global_step)
-
+            self.logger.experiment.add_image(
+                "Generated_images", gridGenerated, self.global_step
+            )
+            self.logger.experiment.add_image(
+                "Original_images", gridOriginal, self.global_step
+            )
 
         return loss
 
@@ -550,13 +565,19 @@ class Block(nn.Module):
 
 
 class FOM_Conditioner(nn.Module):
-    def __init__(self, embedding_length):
+    def __init__(self, batch_size=0, height=0, width=0, embedding_length=0, channels=1):
         super().__init__()
-        self.embedder = SinusoidalPositionalEmbeddings(embedding_length)
+        self.batch_size = batch_size
+        self.height = height
+        self.width = width
+        self.channels = channels
+        self.layer = nn.Linear(embedding_length, height * width)
+        self.SiLU = nn.SiLU()
 
-    def forward(self, FOM):
-        embeddings = self.embedder(FOM)
-        return embeddings
+    def forward(self, FOM_embeddings):
+        x = self.layer(FOM_embeddings)
+        x = self.SiLU(x)
+        return x.view(self.batch_size, self.channels, self.height, self.width)
 
 
 class AttentionUNet(nn.Module):
@@ -567,11 +588,12 @@ class AttentionUNet(nn.Module):
         UNet_channel=8,
         timeEmbeddingLength=16,
         batch_size=100,
-        height=8,
-        width=8,
+        latent_height=8,
+        latent_width=8,
         num_steps=1000,
-        condition_vector_size=16,
+        FOM_condition_vector_size=16,
         kernel_size=(3, 3),
+        conditioning_channel_size=2,
     ):
         super().__init__()
         self.in_channels = in_channels
@@ -580,92 +602,132 @@ class AttentionUNet(nn.Module):
         self.UNet_channel = UNet_channel
         self.dim = timeEmbeddingLength
         self.timeEmbeddingLength = timeEmbeddingLength
+        self.FOM_embedding_length = FOM_condition_vector_size
         self.batch_size = batch_size
-        self.height = height
-        self.width = width
+        self.latent_height = latent_height
+        self.latent_width = latent_width
         self.num_steps = num_steps
         self.embedder = SinusoidalPositionalEmbeddings(self.dim)
 
         # Encoder
         self.layer1a = ResnetBlock(
-            in_channels + 1, UNet_channel, kernel_size, in_channel_image=in_channels
+            in_channels + conditioning_channel_size,
+            UNet_channel,
+            kernel_size,
+            in_channel_image=in_channels,
         )
         self.selfAttention1 = AttnBlock(UNet_channel)
         self.layer1b = ResnetBlock(
-            UNet_channel + 1, UNet_channel, kernel_size, in_channel_image=UNet_channel
+            UNet_channel + conditioning_channel_size,
+            UNet_channel,
+            kernel_size,
+            in_channel_image=UNet_channel,
         )
         self.maxPool = nn.MaxPool2d((2, 2), stride=2)
         self.layer2a = ResnetBlock(
-            UNet_channel + 1,
+            UNet_channel + conditioning_channel_size,
             UNet_channel * 2,
             kernel_size,
             in_channel_image=UNet_channel,
         )
         self.selfAttention2 = AttnBlock(UNet_channel * 2)
         self.layer2b = ResnetBlock(
-            UNet_channel * 2 + 1,
+            UNet_channel * 2 + conditioning_channel_size,
             UNet_channel * 2,
             kernel_size,
             in_channel_image=UNet_channel * 2,
         )
         self.layer3a = ResnetBlock(
-            UNet_channel * 2 + 1,
+            UNet_channel * 2 + conditioning_channel_size,
             UNet_channel * 2,
             kernel_size,
             in_channel_image=UNet_channel * 2,
         )
         self.selfAttention3 = AttnBlock(UNet_channel * 2)
         self.layer3b = ResnetBlock(
-            UNet_channel * 2 + 1,
+            UNet_channel * 2 + conditioning_channel_size,
             UNet_channel * 2,
             kernel_size,
             in_channel_image=UNet_channel * 2,
         )
         self.layer4a = ResnetBlock(
-            2 * (UNet_channel * 2) + 1,
+            2 * (UNet_channel * 2) + conditioning_channel_size,
             UNet_channel * 2,
             kernel_size,
             in_channel_image=2 * (UNet_channel * 2),
         )
         self.selfAttention4 = AttnBlock(UNet_channel * 2)
         self.layer4b = ResnetBlock(
-            UNet_channel * 2 + 1,
+            UNet_channel * 2 + conditioning_channel_size,
             UNet_channel,
             kernel_size,
             in_channel_image=UNet_channel * 2,
         )
         self.layer5a = ResnetBlock(
-            2 * (UNet_channel) + 1,
+            2 * (UNet_channel) + conditioning_channel_size,
             UNet_channel,
             kernel_size,
             in_channel_image=2 * (UNet_channel),
         )
         self.selfAttention5 = AttnBlock(UNet_channel)
         self.layer5b = ResnetBlock(
-            UNet_channel + 1, UNet_channel, kernel_size, in_channel_image=UNet_channel
+            UNet_channel + conditioning_channel_size,
+            UNet_channel,
+            kernel_size,
+            in_channel_image=UNet_channel,
         )
 
         self.layer6 = nn.Conv2d(UNet_channel, out_channels, kernel_size=(1, 1))
 
         # Time Embedders
         self.timeEmbedder1 = TimeEmbedder(
-            timeEmbeddingLength, batch_size, height, width
+            timeEmbeddingLength, batch_size, latent_height, latent_width
         )
         self.timeEmbedder2 = TimeEmbedder(
-            timeEmbeddingLength, batch_size, height // 2, width // 2
+            timeEmbeddingLength, batch_size, latent_height // 2, latent_width // 2
         )
         self.timeEmbedder3 = TimeEmbedder(
-            timeEmbeddingLength, batch_size, height // 4, width // 4
+            timeEmbeddingLength, batch_size, latent_height // 4, latent_width // 4
         )
         self.timeEmbedder4 = TimeEmbedder(
-            timeEmbeddingLength, batch_size, height // 2, width // 2
+            timeEmbeddingLength, batch_size, latent_height // 2, latent_width // 2
         )
         self.timeEmbedder5 = TimeEmbedder(
-            timeEmbeddingLength, batch_size, height, width
+            timeEmbeddingLength, batch_size, latent_height, latent_width
         )
 
+        self.FOM_embedder = SinusoidalPositionalEmbeddings(self.FOM_embedding_length)
         # FOM Embedders
-        self.FOM_embedder = FOM_Conditioner(condition_vector_size)
+        self.FOM_embedder1 = FOM_Conditioner(
+            batch_size=self.batch_size,
+            height=latent_height,
+            width=latent_width,
+            embedding_length=self.FOM_embedding_length,
+        )
+        self.FOM_embedder2 = FOM_Conditioner(
+            batch_size=self.batch_size,
+            height=latent_height // 2,
+            width=latent_width // 2,
+            embedding_length=self.FOM_embedding_length,
+        )
+        self.FOM_embedder3 = FOM_Conditioner(
+            batch_size=self.batch_size,
+            height=latent_height // 4,
+            width=latent_width // 4,
+            embedding_length=self.FOM_embedding_length,
+        )
+        self.FOM_embedder4 = FOM_Conditioner(
+            batch_size=self.batch_size,
+            height=latent_height // 2,
+            width=latent_width // 2,
+            embedding_length=self.FOM_embedding_length,
+        )
+        self.FOM_embedder5 = FOM_Conditioner(
+            batch_size=self.batch_size,
+            height=latent_height,
+            width=latent_width,
+            embedding_length=self.FOM_embedding_length,
+        )
 
     def forward(self, x, FOM_values, timeStep):
 
@@ -679,38 +741,46 @@ class AttentionUNet(nn.Module):
 
         # creation of FOM embeddings
         FOM_embeddings = self.FOM_embedder(FOM_values)
+        FOM_embeddings1 = self.FOM_embedder1(FOM_embeddings)
+        FOM_embeddings2 = self.FOM_embedder2(FOM_embeddings)
+        FOM_embeddings3 = self.FOM_embedder3(FOM_embeddings)
+        FOM_embeddings4 = self.FOM_embedder4(FOM_embeddings)
+        FOM_embeddings5 = self.FOM_embedder5(FOM_embeddings)
 
         # 8x8
-        x1 = self.layer1a(x, embeddings1, FOM_embeddings)
+        x1 = self.layer1a(x, embeddings1, FOM_embeddings1)
         x1 = self.selfAttention1(x1)
         x1 = self.layer1b(x1, embeddings1)
         x2 = self.maxPool(x1)
         # 4x4
-        x2 = self.layer2a(x2, embeddings2, FOM_embeddings)
+        x2 = self.layer2a(x2, embeddings2, FOM_embeddings2)
         x2 = self.selfAttention2(x2)
-        x2 = self.layer2b(x2, embeddings2, FOM_embeddings)
+        x2 = self.layer2b(x2, embeddings2, FOM_embeddings2)
         x3 = self.maxPool(x2)
         # MIDDLE CONNECTION - 2x2
-        x3 = self.layer3a(x3, embeddings3, FOM_embeddings)
+        x3 = self.layer3a(x3, embeddings3, FOM_embeddings3)
         x3 = self.selfAttention3(x3)
-        x3 = self.layer3b(x3, embeddings3, FOM_embeddings)
+        x3 = self.layer3b(x3, embeddings3, FOM_embeddings3)
         #
         x4 = F.interpolate(
             x3,
-            size=(self.height // 2, self.width // 2),
+            size=(self.latent_height // 2, self.latent_width // 2),
             mode="bilinear",
             align_corners=False,
         )
-        x5 = self.layer4a(torch.cat((x2, x4), dim=1), embeddings4, FOM_embeddings)
+        x5 = self.layer4a(torch.cat((x2, x4), dim=1), embeddings4, FOM_embeddings4)
         x5 = self.selfAttention4(x5)
-        x5 = self.layer4b(x5, embeddings4, FOM_embeddings)
+        x5 = self.layer4b(x5, embeddings4, FOM_embeddings4)
         #
         x6 = F.interpolate(
-            x5, size=(self.height, self.width), mode="bilinear", align_corners=False
+            x5,
+            size=(self.latent_height, self.latent_width),
+            mode="bilinear",
+            align_corners=False,
         )
-        x6 = self.layer5a(torch.cat((x1, x6), dim=1), embeddings5, FOM_embeddings)
+        x6 = self.layer5a(torch.cat((x1, x6), dim=1), embeddings5, FOM_embeddings5)
         x6 = self.selfAttention5(x6)
-        x6 = self.layer5b(x6, embeddings5, FOM_embeddings)
+        x6 = self.layer5b(x6, embeddings5, FOM_embeddings5)
 
         # final convolutional layer, kernel size (1,1)
         out = self.layer6(x6)
