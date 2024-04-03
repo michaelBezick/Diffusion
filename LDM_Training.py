@@ -1,26 +1,28 @@
 import numpy as np
 import pytorch_lightning as pl
 import torch
-from Classes import VAE
-from LDM_Classes import LDM, AttentionUNet
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
+
+from LDM_Classes import LDM, VAE, AttentionUNet, LabeledDataset
 
 num_devices = 3
 num_nodes = 4
 num_workers = 1
 accelerator = "gpu"
 batch_size = 100
-epochs = -1
+epochs = 10_000
+in_channels = 1
+out_channels = 1
 
 # terms VAE
-reconstruction_term = 0
-perceptual_term = 1
-kl_term = 0.3
-adv_term = 0
 lr_VAE = 1e-3
 lr_DDPM = 1e-3
+perceptual_loss_scale = 1
+kl_divergence_scale = 0.3
+
+resume_from_checkpoint = False
 
 
 checkpoint_path_VAE = (
@@ -28,48 +30,56 @@ checkpoint_path_VAE = (
 )
 checkpoint_path_LDM = "/home/mbezick/Desktop/logs/LDM/version_0/checkpoints/good.ckpt"
 
+###########################################################################################
+
 checkpoint_callback = ModelCheckpoint(filename="good", every_n_train_steps=300)
 
 torch.set_float32_matmul_precision("high")
 
-vae = VAE(reconstruction_term, perceptual_term, kl_term, adv_term, 1, 64, lr=lr_VAE)
-vae = vae.load_from_checkpoint(
-    checkpoint_path_VAE,
-    a=reconstruction_term,
-    b=perceptual_term,
-    c=kl_term,
-    d=adv_term,
-    in_channels=1,
-    h_dim=64,
+vae = VAE(
+    in_channels=in_channels,
+    h_dim=128,
     lr=lr_VAE,
+    batch_size=batch_size,
+    perceptual_loss_scale=perceptual_loss_scale,
+    kl_divergence_scale=kl_divergence_scale,
+)
+vae = vae.load_from_checkpoint(
+    checkpoint_path=checkpoint_path_VAE,
+    in_channels=in_channels,
+    h_dim=128,
+    lr=lr_VAE,
+    batch_size=batch_size,
+    perceptual_loss_scale=perceptual_loss_scale,
+    kl_divergence_scale=kl_divergence_scale,
 )
 vae.eval()
 
 DDPM = AttentionUNet(
-    in_channels=1,
-    out_channels=1,
+    in_channels=in_channels,
+    out_channels=out_channels,
     UNet_channel=64,
     timeEmbeddingLength=16,
     batch_size=batch_size,
-    height=8,
-    width=8,
+    latent_height=8,
+    latent_width=8,
     num_steps=1000,
-    condition_vector_size=16,
+    FOM_condition_vector_size=16,
 )
 
 ldm = LDM(
     DDPM,
     vae,
-    in_channels=1,
+    in_channels=in_channels,
     batch_size=batch_size,
     num_steps=1000,
-    height=8,
-    width=8,
+    latent_height=8,
+    latent_width=8,
     lr=lr_DDPM,
 )
 
 # loading dataset
-dataset = np.expand_dims(np.load("top_0.npy"), 1)
+dataset = np.expand_dims(np.load("./Files/TPV_dataset.npy"), 1)
 normalizedDataset = (dataset - np.min(dataset)) / (np.max(dataset) - np.min(dataset))
 
 normalizedDataset = np.multiply(normalizedDataset, 2) - 1
@@ -78,10 +88,14 @@ normalizedDataset = normalizedDataset.astype(np.float32)
 
 dataset = torch.from_numpy(normalizedDataset)
 
+labels = torch.load("./Files/FOM_labels.pt")
+
+labeled_dataset = LabeledDataset(dataset, labels)
+
 
 # defining training classes
 train_loader = DataLoader(
-    dataset,
+    labeled_dataset,
     num_workers=num_workers,
     batch_size=batch_size,
     shuffle=True,
@@ -103,7 +117,9 @@ trainer = pl.Trainer(
     detect_anomaly=True,
 )
 
-
-trainer.fit(
-    model=ldm, train_dataloaders=train_loader
-)  # , ckpt_path = checkpoint_path_LDM)
+if resume_from_checkpoint:
+    trainer.fit(
+        model=vae, train_dataloaders=train_loader, ckpt_path=checkpoint_path_LDM
+    )
+else:
+    trainer.fit(model=vae, train_dataloaders=train_loader)
