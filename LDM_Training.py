@@ -108,16 +108,13 @@ trainer = pl.Trainer(
     devices=num_devices,
     num_nodes=num_nodes,
     accelerator="gpu",
-    log_every_n_steps=1,
-    callbacks=[checkpoint_callback],
+    log_every_n_steps=2,
     max_epochs=epochs,
-    strategy="ddp_find_unused_parameters_true",
-    detect_anomaly=True,
 )
 
 if resume_from_checkpoint:
     trainer.fit(
-        model=vae, train_dataloaders=train_loader, ckpt_path=checkpoint_path_LDM
+        model=ldm, train_dataloaders=train_loader, ckpt_path=checkpoint_path_LDM
     )
 else:
-    trainer.fit(model=LDM, train_dataloaders=train_loader)
+    trainer.fit(model=ldm, train_dataloaders=train_loader)
