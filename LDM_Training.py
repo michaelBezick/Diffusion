@@ -24,11 +24,9 @@ kl_divergence_scale = 0.3
 
 resume_from_checkpoint = False
 
+checkpoint_path_VAE = "./logs/VAE/version_0/checkpoints/epoch=1115-step=33480.ckpt"
 
-checkpoint_path_VAE = (
-    "/home/mbezick/Desktop/logs/VAE_V6/version_60/checkpoints/good-v1.ckpt"
-)
-checkpoint_path_LDM = "/home/mbezick/Desktop/logs/LDM/version_0/checkpoints/good.ckpt"
+#checkpoint_path_LDM = "/home/mbezick/Desktop/logs/LDM/version_0/checkpoints/good.ckpt"
 
 ###########################################################################################
 
@@ -122,4 +120,4 @@ if resume_from_checkpoint:
         model=vae, train_dataloaders=train_loader, ckpt_path=checkpoint_path_LDM
     )
 else:
-    trainer.fit(model=vae, train_dataloaders=train_loader)
+    trainer.fit(model=LDM, train_dataloaders=train_loader)
