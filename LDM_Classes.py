@@ -90,8 +90,8 @@ class LDM(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         images, FOMs = batch
 
-        if self.global_step % 300 == 0:
-            self.sample()
+        # if self.global_step % 300 == 0:
+        #     self.sample()
 
         # random timestep
         t = torch.randint(0, self.num_steps - 1, (self.batch_size,), device=self.device)
