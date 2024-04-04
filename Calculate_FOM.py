@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torchvision
 from torch.utils.data import DataLoader
+import statistics
 
 from LDM_Classes import LDM, VAE, AttentionUNet, load_FOM_model, expand_output
 
@@ -39,7 +40,7 @@ if generate_new_dataset:
     torch.save(dataset, "generated_dataset.pt")
     dataset = expand_output(dataset, num_samples)
 else:
-    dataset = torch.load("generated_dataset.pt")
+    dataset = torch.load("./Generated_Datasets/generated_dataset.pt")
     dataset = expand_output(dataset, num_samples)
 
 FOM_calculator = load_FOM_model("Files/VGGnet.json", "Files/VGGnet_weights.h5")
@@ -58,4 +59,17 @@ for batch in train_loader:
    FOM_measurements.extend(FOM.numpy().flatten().tolist())
 
 print(len(FOM_measurements))
-print(max(FOM_measurements))
+print(f"Max generated: {max(FOM_measurements):2f}")
+print(f"Mean generated: {statistics.mean(FOM_measurements):2f}")
+print(f"Min generated: {min(FOM_measurements):2f}")
+
+dataset_labels = torch.load("./Files/FOM_labels.pt")
+print(f"Max dataset: {max(dataset_labels):2f}")
+print(f"Mean dataset: {statistics.mean(dataset_labels):2f}")
+print(f"Min dataset: {min(dataset_labels):2f}")
+
+max_generated =  max(FOM_measurements)
+max_dataset = max(dataset_labels)
+percent_improvement = max_generated / max_dataset
+
+print(f"Percent improvement: {percent_improvement}")
