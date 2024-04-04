@@ -2,4 +2,3 @@ Test_Files
 .venv
 *.ckpt
 *.out
-logs
