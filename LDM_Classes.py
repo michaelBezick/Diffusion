@@ -124,6 +124,8 @@ class LDM(pl.LightningModule):
         # z_reparameterized = mu + torch.multiply(sigma, epsilon)
 
         if self.global_step % 300 == 0:
+            print(latent_encoding)
+            exit()
             latent_grid = torchvision.utils.make_grid(latent_encoding)
             self.logger.experiment.add_image(
                 "True latent grid", latent_grid, self.global_step
