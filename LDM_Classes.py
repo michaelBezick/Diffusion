@@ -90,8 +90,8 @@ class LDM(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         images, FOMs = batch
 
-        # if self.global_step % 300 == 0:
-        #     self.sample()
+        if self.global_step % 300 == 0:
+            self.sample()
 
         # random timestep
         t = torch.randint(0, self.num_steps - 1, (self.batch_size,), device=self.device)
@@ -112,7 +112,9 @@ class LDM(pl.LightningModule):
         # encoding to latent space
         x = images
         with torch.no_grad():
-            latent_encoding = self.VAE.encode(x)
+             mu, sigma = self.VAE.encode(x)
+
+        z_reparameterized = mu + torch.multiply(sigma, torch.randn_like(sigma))
 
         # latent_encoding_sample = torch.bernoulli(
         #     latent_encoding_logits
@@ -124,15 +126,13 @@ class LDM(pl.LightningModule):
         # z_reparameterized = mu + torch.multiply(sigma, epsilon)
 
         if self.global_step % 300 == 0:
-            print(latent_encoding)
-            exit()
-            latent_grid = torchvision.utils.make_grid(latent_encoding)
+            latent_grid = torchvision.utils.make_grid(z_reparameterized)
             self.logger.experiment.add_image(
                 "True latent grid", latent_grid, self.global_step
             )
 
         ### Creation of x_t, algorithm 1 of Ho et al.###
-        mu = torch.mul(torch.sqrt(alpha_bar_vector), latent_encoding)
+        mu = torch.mul(torch.sqrt(alpha_bar_vector), z_reparameterized)
         variance = torch.mul(
             torch.sqrt(torch.ones_like(alpha_bar_vector) - alpha_bar_vector), epsilon_0
         )
@@ -226,6 +226,7 @@ class LDM(pl.LightningModule):
         with torch.no_grad():
             x_T = self.random_generator.sample((self.batch_size,))
             x_T = x_T.view(self.batch_size, self.in_channels, self.height, self.width)
+            FOMs = torch.rand(self.batch_size) * 1.8
 
             previous_image = x_T
 
@@ -241,7 +242,7 @@ class LDM(pl.LightningModule):
 
                 timeStep = torch.tensor(t).to(self.device)
                 timeStep = timeStep.repeat(self.batch_size)
-                epsilon_theta = self.DDPM(previous_image, timeStep)
+                epsilon_theta = self.DDPM(previous_image, FOMs, timeStep)
 
                 # algorithm 2 from Ho et al., using posterior variance_t = beta_t
                 epsilon_theta = torch.mul(
