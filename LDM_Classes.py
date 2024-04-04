@@ -757,7 +757,7 @@ class AttentionUNet(nn.Module):
         # 8x8
         x1 = self.layer1a(x, embeddings1, FOM_embeddings1)
         x1 = self.selfAttention1(x1)
-        x1 = self.layer1b(x1, embeddings1)
+        x1 = self.layer1b(x1, embeddings1, FOM_embeddings1)
         x2 = self.maxPool(x1)
         # 4x4
         x2 = self.layer2a(x2, embeddings2, FOM_embeddings2)
