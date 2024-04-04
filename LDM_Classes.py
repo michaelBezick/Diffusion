@@ -112,7 +112,7 @@ class LDM(pl.LightningModule):
         # encoding to latent space
         x = images
         with torch.no_grad():
-            latent_encoding = self.VAE.vae.encode(x)
+            latent_encoding = self.VAE.encode(x)
 
         # latent_encoding_sample = torch.bernoulli(
         #     latent_encoding_logits
@@ -263,7 +263,7 @@ class LDM(pl.LightningModule):
             self.logger.experiment.add_image(
                 "Latent_Generated_Images", x_0_grid, self.global_step
             )
-            x_0_decoded = self.VAE.vae.decode(x_0)
+            x_0_decoded = self.VAE.decode(x_0)
             grid = torchvision.utils.make_grid(x_0_decoded)
             self.logger.experiment.add_image("Generated_Images", grid, self.global_step)
 
