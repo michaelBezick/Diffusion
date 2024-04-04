@@ -7,8 +7,8 @@ from torch.utils.data import DataLoader
 
 from LDM_Classes import LDM, VAE, AttentionUNet, LabeledDataset
 
-num_devices = 1
-num_nodes = 1
+num_devices = 2
+num_nodes = 2
 num_workers = 1
 accelerator = "gpu"
 batch_size = 100
@@ -110,6 +110,7 @@ trainer = pl.Trainer(
     accelerator="gpu",
     log_every_n_steps=2,
     max_epochs=epochs,
+    strategy="ddp_find_unused_parameters_true",
 )
 
 if resume_from_checkpoint:
