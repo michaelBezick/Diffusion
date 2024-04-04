@@ -7,12 +7,12 @@ from LDM_Classes import LDM, VAE, AttentionUNet
 
 checkpoint_path_LDM = "./logs/LDM/version_1/checkpoints/epoch=3552-step=106590.ckpt"
 
-num_samples = 10_000
+num_samples = 20_000
 batch_size = 1000
 generate_new_dataset = True
 compiled = False
-mean = 1.8
-variance = 0.2
+mean = 1.7
+variance = 0.1
 ############################################################
 
 if generate_new_dataset:
@@ -46,6 +46,7 @@ if generate_new_dataset:
 
     dataset = torch.from_numpy(dataset)
     torch.save(dataset, "generated_dataset.pt")
+    exit()
     dataset = expand_output(dataset, num_samples)
 else:
     dataset = torch.load("generated_dataset.pt")
