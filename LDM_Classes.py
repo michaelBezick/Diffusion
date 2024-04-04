@@ -114,7 +114,7 @@ class LDM(pl.LightningModule):
         with torch.no_grad():
              mu, sigma = self.VAE.encode(x)
 
-        z_reparameterized = mu + torch.multiply(sigma, torch.randn_like(sigma))
+        z_reparameterized = mu + torch.multiply(sigma, torch.randn_like(sigma, device=self.device))
 
         # latent_encoding_sample = torch.bernoulli(
         #     latent_encoding_logits
@@ -226,7 +226,7 @@ class LDM(pl.LightningModule):
         with torch.no_grad():
             x_T = self.random_generator.sample((self.batch_size,))
             x_T = x_T.view(self.batch_size, self.in_channels, self.height, self.width)
-            FOMs = torch.rand(self.batch_size) * 1.8
+            FOMs = torch.rand(self.batch_size, device=self.device) * 1.8
 
             previous_image = x_T
 
