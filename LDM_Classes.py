@@ -3,6 +3,7 @@ from enum import Enum
 
 import numpy as np
 import pytorch_lightning as pl
+import tensorflow as tf
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -11,6 +12,7 @@ from torch import nn, optim
 from torch.distributions.multivariate_normal import MultivariateNormal
 from torch.utils.data import Dataset
 from torchvision.models import VGG16_Weights
+from tqdm import tqdm
 
 
 class Model_Type(Enum):
@@ -19,6 +21,26 @@ class Model_Type(Enum):
     ISING = 3
     BLUME_CAPEL = 4
     POTTS = 5
+
+
+def expand_output(tensor: torch.Tensor, num_samples):
+    x = torch.zeros([num_samples, 1, 64, 64])
+    x[:, :, 0:32, 0:32] = tensor
+    x[:, :, 32:64, 0:32] = torch.flip(tensor, dims=[2])
+    x[:, :, 0:32, 32:64] = torch.flip(tensor, dims=[3])
+    x[:, :, 32:64, 32:64] = torch.flip(tensor, dims=[2, 3])
+
+    return x
+
+
+def load_FOM_model(model_path, weights_path):
+    with open(model_path, "r") as file:
+        data = file.read()
+
+    FOM_calculator = tf.keras.models.model_from_json(data)
+    FOM_calculator.load_weights(weights_path)
+
+    return FOM_calculator
 
 
 class LabeledDataset(Dataset):
@@ -112,9 +134,11 @@ class LDM(pl.LightningModule):
         # encoding to latent space
         x = images
         with torch.no_grad():
-             mu, sigma = self.VAE.encode(x)
+            mu, sigma = self.VAE.encode(x)
 
-        z_reparameterized = mu + torch.multiply(sigma, torch.randn_like(sigma, device=self.device))
+        z_reparameterized = mu + torch.multiply(
+            sigma, torch.randn_like(sigma, device=self.device)
+        )
 
         # latent_encoding_sample = torch.bernoulli(
         #     latent_encoding_logits
@@ -174,16 +198,16 @@ class LDM(pl.LightningModule):
             torch.eye(self.height * self.width * self.in_channels, device=self.device),
         )
 
-    def create_dataset(self):
+    def create_dataset(self, num_samples, FOM_values):
         dataset = []
-        while len(dataset) < 2000:
+        for i in tqdm(range(num_samples // self.batch_size)):
             with torch.no_grad():
                 x_T = self.random_generator.sample((self.batch_size,))
                 x_T = x_T.view(
                     self.batch_size, self.in_channels, self.height, self.width
                 )
 
-                previous_image = x_T
+                previous_image = x_T.to(self.device)
 
                 # runs diffusion process from pure noise to timestep 0
                 for t in range(self.num_steps - 1, -1, -1):
@@ -197,7 +221,7 @@ class LDM(pl.LightningModule):
 
                     timeStep = torch.tensor(t).to(self.device)
                     timeStep = timeStep.repeat(self.batch_size)
-                    epsilon_theta = self.DDPM(previous_image, timeStep)
+                    epsilon_theta = self.DDPM(previous_image, FOM_values, timeStep)
 
                     # algorithm 2 from Ho et al., using posterior variance_t = beta_t
                     epsilon_theta = torch.mul(
@@ -213,15 +237,15 @@ class LDM(pl.LightningModule):
                         within_parentheses,
                     )
                     previous_image = first_term + torch.mul(
-                        torch.sqrt(1 - self.alpha_schedule[t]), z
+                        torch.sqrt(1 - self.alpha_schedule[t]), z.to(self.device)
                     )
 
                 x_0 = previous_image
-                for image in x_0.cpu().numpy():
-                    dataset.append(image)
+                decoded = self.VAE.decode(x_0)
+                dataset.extend(decoded.cpu().numpy())
 
         dataset = np.array(dataset)
-        np.save(dataset, "generated_dataset.npy")
+        return dataset
 
     def sample(self):
         with torch.no_grad():
