@@ -3,13 +3,14 @@ import torch
 import torchvision
 from torch.utils.data import DataLoader
 
-from LDM_Classes import LDM, VAE, AttentionUNet, load_FOM_model, expand_output
+from LDM_Classes import LDM, VAE, AttentionUNet
 
 checkpoint_path_LDM = "./logs/LDM/version_1/checkpoints/epoch=3552-step=106590.ckpt"
 
 num_samples = 10_000
 batch_size = 1000
-generate_new_dataset = False
+generate_new_dataset = True
+compiled = False
 mean = 1.8
 variance = 0.2
 ############################################################
@@ -33,7 +34,15 @@ if generate_new_dataset:
     ).to("cuda").eval()
     torch.set_float32_matmul_precision("high")
 
+    #FOM_calculator = load_FOM_model("Files/VGGnet.json", "Files/VGGnet_weights.h5")
+
     dataset = ldm.create_dataset(num_samples=num_samples, FOM_values=FOM_values)
+    if compiled:
+        optimized_create_dataset = torch.compile(ldm.create_dataset, mode="reduce-overhead")
+        print("Compiled")
+        dataset = optimized_create_dataset(num_samples=num_samples, FOM_values=FOM_values)
+    else:
+        dataset = ldm.create_dataset(num_samples=num_samples, FOM_values=FOM_values)
 
     dataset = torch.from_numpy(dataset)
     torch.save(dataset, "generated_dataset.pt")
@@ -41,21 +50,20 @@ if generate_new_dataset:
 else:
     dataset = torch.load("generated_dataset.pt")
     dataset = expand_output(dataset, num_samples)
-
-FOM_calculator = load_FOM_model("Files/VGGnet.json", "Files/VGGnet_weights.h5")
-train_loader = DataLoader(
-   dataset,
-   batch_size=batch_size,
-   shuffle=False,
-   drop_last=False,
-)
-
-FOM_measurements = []
-
-for batch in train_loader:
-   grid = torchvision.utils.make_grid(batch)
-   FOM = FOM_calculator(torch.permute(batch.repeat(1, 3, 1, 1), (0, 2, 3, 1)).numpy())
-   FOM_measurements.extend(FOM.numpy().flatten().tolist())
-
-print(len(FOM_measurements))
-print(max(FOM_measurements))
+#
+#train_loader = DataLoader(
+#    dataset,
+#    batch_size=batch_size,
+#    shuffle=False,
+#    drop_last=False,
+#)
+#
+#FOM_measurements = []
+#
+#for batch in train_loader:
+#    grid = torchvision.utils.make_grid(batch)
+#    FOM = FOM_calculator(torch.permute(batch.repeat(1, 3, 1, 1), (0, 2, 3, 1)).numpy())
+#    FOM_measurements.extend(FOM.numpy().flatten().tolist())
+#
+#print(len(FOM_measurements))
+#print(max(FOM_measurements))
