@@ -139,9 +139,12 @@ class LDM(pl.LightningModule):
         x_t = torch.add(mu, variance)
 
         # experiment with this
-        tNotNormalized = t
+        tNotNormalized = t.float()
 
         # predicted true epsilon in latent space
+        print(t)
+        print(FOMs)
+        exit()
         epsilon_theta_latent = self.DDPM.forward(x_t, FOMs, tNotNormalized)
 
         # calculating loss
