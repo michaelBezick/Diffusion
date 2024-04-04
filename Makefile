@@ -7,4 +7,4 @@ show:
 clean:
 	rm *.out
 interactive:
-	sinteractive -A standby -N1 -n1 --gpus-per-node=1
+	sinteractive --nodes=1 --gpus-per-node=1 --constraint="K|I"
