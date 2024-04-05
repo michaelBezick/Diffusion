@@ -40,6 +40,6 @@ if not os.path.isdir(dir_path):
     os.mkdir(dir_path)
 
 torch.save(dataset, dir_path + "generated_dataset.pt")
-torch.save(FOM_values, dir_path + "FOM_values")
-with open("Experiment_Notes.txt", "w") as file:
+torch.save(FOM_values, dir_path + "FOM_values.pt")
+with open(dir_path + "Experiment_Notes.txt", "w") as file:
     file.write(experiment_notes)
