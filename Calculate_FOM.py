@@ -81,22 +81,21 @@ for batch in tqdm(train_loader):
 with open(
     "./Generated_Datasets/" + experiment_name + "/Experiment_Summary.txt", "w"
 ) as file:
-    file.write(f"Max generated: {max(FOM_measurements):2f}")
-    file.write(f"Max generated: {max(FOM_measurements):2f}")
-    file.write(f"Mean generated: {statistics.mean(FOM_measurements):2f}")
-    file.write(f"Min generated: {min(FOM_measurements):2f}")
+    file.write(f"Max generated: {max(FOM_measurements):2f}\n")
+    file.write(f"Max generated: {max(FOM_measurements):2f}\n")
+    file.write(f"Mean generated: {statistics.mean(FOM_measurements):2f}\n")
+    file.write(f"Min generated: {min(FOM_measurements):2f}\n")
 
     dataset_labels = torch.load("./Files/FOM_labels.pt")
-    file.write(f"Max dataset: {max(dataset_labels):2f}")
-    file.write(f"Mean dataset: {statistics.mean(dataset_labels):2f}")
-    file.write(f"Min dataset: {min(dataset_labels):2f}")
+    file.write(f"Max dataset: {max(dataset_labels):2f}\n")
+    file.write(f"Mean dataset: {statistics.mean(dataset_labels):2f}\n")
+    file.write(f"Min dataset: {min(dataset_labels):2f}\n")
 
     max_generated = max(FOM_measurements)
     max_dataset = max(dataset_labels)
     percent_improvement = max_generated / max_dataset
 
-    file.write(f"Percent improvement: {percent_improvement}")
-
+    file.write(f"Percent improvement: {percent_improvement}\n")
 
 # plotting correlation
 
