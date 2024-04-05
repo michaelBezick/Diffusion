@@ -3,8 +3,8 @@ import os
 
 from LDM_Classes import LDM, VAE, AttentionUNet
 
-experiment_name = ""
-experiment_notes = ""
+experiment_name = "Experiment_3"
+experiment_notes = "Added saving FOM values to get correlation"
 num_samples = 20_000
 batch_size = 1000
 mean = 1.7
@@ -31,7 +31,6 @@ ldm = LDM.load_from_checkpoint(
 ).to("cuda").eval()
 torch.set_float32_matmul_precision("high")
 
-dataset = ldm.create_dataset(num_samples=num_samples, FOM_values=FOM_values)
 dataset = ldm.create_dataset(num_samples=num_samples, FOM_values=FOM_values)
 dataset = torch.from_numpy(dataset)
 
