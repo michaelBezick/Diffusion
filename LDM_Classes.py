@@ -197,6 +197,66 @@ class LDM(pl.LightningModule):
             ),
             torch.eye(self.height * self.width * self.in_channels, device=self.device),
         )
+    def create_dataset_variable_FOM(self, num_samples, start_mean, end_mean, variance):
+        dataset = []
+        for _ in tqdm(range(num_samples // self.batch_size)):
+            with torch.no_grad():
+                x_T = self.random_generator.sample((self.batch_size,))
+                x_T = x_T.view(
+                    self.batch_size, self.in_channels, self.height, self.width
+                )
+
+                previous_image = x_T.to(self.device)
+
+                # runs diffusion process from pure noise to timestep 0
+                """
+                T ranges from 999 to 0, so must linearly scale to start mean to end mean
+                This can be accomplished by first inverting t to (num_steps - t), then dividing by 1000 to get in range [0, 1],
+                then multiplying this scalar to the difference between start and end mean, then adding to start mean
+                """
+
+                difference_mean = end_mean - start_mean
+                for t in range(self.num_steps - 1, -1, -1):
+
+                    scaled_t = (self.num_steps - t) / 1000
+                    functional_mean = scaled_t * difference_mean + start_mean
+
+                    FOM_values = variance * torch.randn(self.batch_size, device = self.device) + functional_mean
+
+                    if t > 0:
+                        z = self.random_generator.sample((self.batch_size,)).view(
+                            self.batch_size, self.in_channels, self.height, self.width
+                        )
+                    elif t == 0:
+                        z = torch.zeros_like(x_T)
+
+                    timeStep = torch.tensor(t).to(self.device)
+                    timeStep = timeStep.repeat(self.batch_size)
+                    epsilon_theta = self.DDPM(previous_image, FOM_values, timeStep)
+
+                    # algorithm 2 from Ho et al., using posterior variance_t = beta_t
+                    epsilon_theta = torch.mul(
+                        torch.divide(
+                            1 - self.alpha_schedule[t],
+                            torch.sqrt(1 - self.alpha_bar_schedule[t]),
+                        ),
+                        epsilon_theta,
+                    )
+                    within_parentheses = previous_image - epsilon_theta
+                    first_term = torch.mul(
+                        torch.divide(1, torch.sqrt(self.alpha_schedule[t])),
+                        within_parentheses,
+                    )
+                    previous_image = first_term + torch.mul(
+                        torch.sqrt(1 - self.alpha_schedule[t]), z.to(self.device)
+                    )
+
+                x_0 = previous_image
+                decoded = self.VAE.decode(x_0)
+                dataset.extend(decoded.cpu().numpy())
+
+        dataset = np.array(dataset)
+        return dataset
 
     def create_dataset(self, num_samples, FOM_values):
         dataset = []
