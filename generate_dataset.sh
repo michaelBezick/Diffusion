@@ -1,4 +1,4 @@
-#!bin/bash
-cd $SLURM_SUBMIT_DIR
+#!/bin/bash
 module load anaconda
-python3 generate_dataset_Gilbreth.py
+cd $SLURM_SUBMIT_DIR
+python -m generate_dataset_Gilbreth.py
