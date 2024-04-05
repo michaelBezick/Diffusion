@@ -3,8 +3,8 @@ import os
 
 from LDM_Classes import LDM, VAE, AttentionUNet
 
-experiment_name = "Experiment_4"
-experiment_notes = "Have sampling start at 1.4 mean and linearly increase to 1.8 during training. Variance held at 0.1"
+experiment_name = "Experiment_5"
+experiment_notes = "Having sampling mean start and end at 1.8 with variance 0.1. Will give some variation of conditioning during training"
 num_samples = 20_000
 batch_size = 1000
 mean = 1.7
