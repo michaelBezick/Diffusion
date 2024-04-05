@@ -8,7 +8,7 @@ from LDM_Classes import LDM, VAE, AttentionUNet, load_FOM_model, expand_output
 
 checkpoint_path_LDM = "./logs/LDM/version_1/checkpoints/epoch=3552-step=106590.ckpt"
 
-num_samples = 10_000
+num_samples = 20_000
 batch_size = 1000
 generate_new_dataset = False
 mean = 1.8
@@ -41,6 +41,7 @@ if generate_new_dataset:
     dataset = expand_output(dataset, num_samples)
 else:
     dataset = torch.load("./Generated_Datasets/generated_dataset.pt")
+    dataset = torch.load("./generated_dataset.pt")
     dataset = expand_output(dataset, num_samples)
 
 FOM_calculator = load_FOM_model("Files/VGGnet.json", "Files/VGGnet_weights.h5")
