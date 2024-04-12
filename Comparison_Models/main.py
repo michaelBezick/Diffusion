@@ -5,7 +5,7 @@ from Models import Discriminator, Generator, LabeledDataset
 from torch.utils.data import DataLoader
 from Training import Trainer
 
-batch_size = 200
+batch_size = 20
 
 dataset = np.expand_dims(np.load("../Files/TPV_dataset.npy"), 1)
 normalizedDataset = (dataset - np.min(dataset)) / (np.max(dataset) - np.min(dataset))
@@ -29,8 +29,8 @@ data_loader = DataLoader(
 
 img_size = (32, 32, 1)
 
-generator = Generator(img_size=img_size, latent_dim=100, dim=68).cuda()
-discriminator = Discriminator(img_size=img_size, dim=68).cuda()
+generator = Generator(img_size=img_size, latent_dim=100, dim=32).cuda()
+discriminator = Discriminator(img_size=img_size, dim=32).cuda()
 
 model_parameters = filter(lambda p: p.requires_grad, generator.parameters())
 params1 = sum([np.prod(p.size()) for p in model_parameters])

@@ -57,6 +57,8 @@ class Trainer:
         d_loss = d_generated.mean() - d_real.mean() + gradient_penalty
         d_loss.backward()
 
+        self.D_opt.step()
+
         # Record loss
         self.losses["D"].append(d_loss.item())
 
