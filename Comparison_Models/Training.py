@@ -35,14 +35,12 @@ class Trainer:
 
     def _critic_train_iteration(self, data, labels):
 
-        for p in self.D.parameters():
-            p.requires_grad = True
+        self.D_opt.zero_grad()
 
-        one = torch.tensor(1, dtype=torch.float, device="cuda")
-        mone = one * -1
         # Get generated data
         batch_size = data.size()[0]
-        generated_data = self.sample_generator(batch_size, labels)
+        generated_data = self.sample_generator(batch_size, labels).detach()
+        #added detach
 
         # Calculate probabilities on real and generated data
         data = Variable(data)
@@ -56,24 +54,8 @@ class Trainer:
         self.losses["GP"].append(gradient_penalty.item())
 
         # Create total loss and optimize
-        self.D_opt.zero_grad()
         d_loss = d_generated.mean() - d_real.mean() + gradient_penalty
-        # d_loss.backward()
-
-        """
-        Experiment with new method
-        """
-
-        self.D_opt.zero_grad()
-        d_loss_real = d_real.mean()
-        d_loss_real.backward(mone)
-
-        d_loss_fake = d_generated.mean()
-        d_loss_fake.backward(one)
-
-        gradient_penalty.backward()
-
-        self.D_opt.step()
+        d_loss.backward()
 
         # Record loss
         self.losses["D"].append(d_loss.item())
@@ -82,19 +64,14 @@ class Trainer:
         """ """
         self.G_opt.zero_grad()
 
-        for p in self.D.parameters():
-            p.requires_grad = False
-
-        mone = torch.tensor(1, dtype=torch.float, device="cuda") * -1
-
         # Get generated data
         batch_size = data.size()[0]
         generated_data = self.sample_generator(batch_size, labels)
 
         # Calculate loss and optimize
         d_generated = self.D(generated_data, labels)
-        g_loss = d_generated.mean()
-        g_loss.backward(mone)
+        g_loss = -d_generated.mean()
+        g_loss.backward()
         self.G_opt.step()
 
         # Record loss
