@@ -1,0 +1,2 @@
+LDM: 6.4 million
+WGAN: 6.4 million

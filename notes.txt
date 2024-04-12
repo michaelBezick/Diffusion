@@ -1,0 +1,10 @@
+paper Yuheng gave me uses a combination of a conditioned DDPM and unconditioned DDPM to avoid mode collapse.
+Consider implementing this.
+
+Furthermore, it appears that the other model comparisons use the same conditioning scheme.
+
+Finally, experiment whether having the conditioning scheme being learnable could improve results?
+Perhaps the gradient would be too massive due to the many sampling steps, so experiment with the previous things first.
+
+Order of priority:
+  1. get WGAN-GP, cVAE models created
