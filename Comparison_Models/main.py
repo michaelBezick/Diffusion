@@ -5,7 +5,7 @@ from Models import Discriminator, Generator, LabeledDataset
 from torch.utils.data import DataLoader
 from Training import Trainer
 
-batch_size = 32
+batch_size = 200
 
 dataset = np.expand_dims(np.load("../Files/TPV_dataset.npy"), 1)
 normalizedDataset = (dataset - np.min(dataset)) / (np.max(dataset) - np.min(dataset))
@@ -55,7 +55,7 @@ G_optimizer = optim.Adam(generator.parameters(), lr=lr_gen, betas=betas)
 D_optimizer = optim.Adam(discriminator.parameters(), lr=lr_disc, betas=betas)
 
 # Train model
-epochs = 200
+epochs = 5000
 trainer = Trainer(
     generator,
     discriminator,
