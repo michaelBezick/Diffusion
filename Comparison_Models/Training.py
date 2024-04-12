@@ -12,8 +12,8 @@ class Trainer:
         discriminator,
         gen_optimizer,
         dis_optimizer,
-        gp_weight=10,
-        critic_iterations=5,
+        gp_weight=5,
+        critic_iterations=1,
         print_every=50,
         use_cuda=True,
     ):
@@ -40,10 +40,9 @@ class Trainer:
         # Get generated data
         batch_size = data.size()[0]
         generated_data = self.sample_generator(batch_size, labels).detach()
-        #added detach
 
         # Calculate probabilities on real and generated data
-        data = Variable(data)
+        data = data.requires_grad_()
         if self.use_cuda:
             data = data.cuda()
         d_real = self.D(data, labels)
@@ -56,11 +55,14 @@ class Trainer:
         # Create total loss and optimize
         d_loss = d_generated.mean() - d_real.mean() + gradient_penalty
         d_loss.backward()
+        self.D_opt.step()
+
+        d_loss_without_gradient_penalty = d_generated.mean() - d_real.mean()
 
         self.D_opt.step()
 
         # Record loss
-        self.losses["D"].append(d_loss.item())
+        self.losses["D"].append(d_loss_without_gradient_penalty.item())
 
     def _generator_train_iteration(self, data, labels):
         """ """
@@ -88,7 +90,7 @@ class Trainer:
         if self.use_cuda:
             alpha = alpha.cuda()
         interpolated = alpha * real_data.data + (1 - alpha) * generated_data.data
-        interpolated = Variable(interpolated, requires_grad=True)
+        interpolated = interpolated.requires_grad_()
         if self.use_cuda:
             interpolated = interpolated.cuda()
 
@@ -112,11 +114,6 @@ class Trainer:
         # so flatten to easily take norm per example in batch
         gradients = gradients.view(batch_size, -1)
 
-        """
-        MADE AN EDIT HERE, MAKE SURE IT WORKS
-        """
-
-        # self.losses["gradient_norm"].append(gradients.norm(2, dim=1).mean().data[0])
         self.losses["gradient_norm"].append(gradients.norm(dim=1).mean().item())
 
         # Derivatives of the gradient close to 0 can cause problems because of
@@ -176,7 +173,6 @@ class Trainer:
 
     def sample_generator(self, num_samples, labels):
         latent_samples = Variable(self.G.sample_latent(num_samples))
-        # correctly different
         if self.use_cuda:
             latent_samples = latent_samples.cuda()
         generated_data = self.G(latent_samples, labels)

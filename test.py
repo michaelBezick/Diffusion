@@ -1,13 +1,15 @@
 import torch
 
-labels = torch.randint(low=0, high=10, size=(2, 1))
-print(labels)
-# labels = labels.expand(2, 3)
-# labels = labels.unsqueeze(2)
-# labels = labels.expand(2, 3, 3)
+data = torch.randn((100, 1, 32, 32))
+labels = torch.randint(low=0, high=10, size=(100, 1))
 
-labels = labels.unsqueeze(2)
-labels = labels.expand(2, 3, 3)
+labels = labels.unsqueeze(2).unsqueeze(3)
+labels = labels.expand(100, 1, 32, 32)
 
 print(labels)
 print(labels.size())
+final = torch.cat((data, labels), dim=1)
+print(final)
+print(final.size())
+print(final[0, 0, :, :])
+print(final[0, 1, :, :])

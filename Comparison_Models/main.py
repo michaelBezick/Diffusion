@@ -29,7 +29,7 @@ data_loader = DataLoader(
 
 img_size = (32, 32, 1)
 
-generator = Generator(img_size=img_size, latent_dim=100, dim=32).cuda()
+generator = Generator(img_size=img_size, latent_dim=64, dim=32).cuda()
 discriminator = Discriminator(img_size=img_size, dim=32).cuda()
 
 model_parameters = filter(lambda p: p.requires_grad, generator.parameters())
@@ -44,15 +44,16 @@ print(f" Discriminator parameter count: {params}")
 print(f"Total {params1 + params}")
 
 
-print(generator)
-print(discriminator)
-
 # Initialize optimizers
-lr_gen = 1e-4
-lr_disc = 1e-4
-betas = (0.5, 0.999)
-G_optimizer = optim.Adam(generator.parameters(), lr=lr_gen, betas=betas)
-D_optimizer = optim.Adam(discriminator.parameters(), lr=lr_disc, betas=betas)
+lr_gen = 1e-3
+lr_disc = 1e-3
+
+# betas = (0.9, 0.99)
+# G_optimizer = optim.Adam(generator.parameters(), lr=lr_gen, betas=betas)
+# D_optimizer = optim.Adam(discriminator.parameters(), lr=lr_disc, betas=betas)
+
+G_optimizer = optim.Adam(generator.parameters(), lr=lr_gen)  # betas=betas)
+D_optimizer = optim.Adam(discriminator.parameters(), lr=lr_disc)  # betas=betas)
 
 # Train model
 epochs = 5000
