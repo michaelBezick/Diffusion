@@ -15,7 +15,7 @@ class Trainer:
         gp_weight=10,
         critic_iterations=5,
         print_every=50,
-        use_cuda=False,
+        use_cuda=True,
     ):
         self.G = generator
         self.G_opt = gen_optimizer
@@ -34,7 +34,12 @@ class Trainer:
             self.D.cuda()
 
     def _critic_train_iteration(self, data, labels):
-        """ """
+
+        for p in self.D.parameters():
+            p.requires_grad = True
+
+        one = torch.tensor(1, dtype=torch.float, device="cuda")
+        mone = one * -1
         # Get generated data
         batch_size = data.size()[0]
         generated_data = self.sample_generator(batch_size, labels)
@@ -53,7 +58,20 @@ class Trainer:
         # Create total loss and optimize
         self.D_opt.zero_grad()
         d_loss = d_generated.mean() - d_real.mean() + gradient_penalty
-        d_loss.backward()
+        # d_loss.backward()
+
+        """
+        Experiment with new method
+        """
+
+        self.D_opt.zero_grad()
+        d_loss_real = d_real.mean()
+        d_loss_real.backward(mone)
+
+        d_loss_fake = d_generated.mean()
+        d_loss_fake.backward(one)
+
+        gradient_penalty.backward()
 
         self.D_opt.step()
 
@@ -64,14 +82,19 @@ class Trainer:
         """ """
         self.G_opt.zero_grad()
 
+        for p in self.D.parameters():
+            p.requires_grad = False
+
+        mone = torch.tensor(1, dtype=torch.float, device="cuda") * -1
+
         # Get generated data
         batch_size = data.size()[0]
         generated_data = self.sample_generator(batch_size, labels)
 
         # Calculate loss and optimize
         d_generated = self.D(generated_data, labels)
-        g_loss = -d_generated.mean()
-        g_loss.backward()
+        g_loss = d_generated.mean()
+        g_loss.backward(mone)
         self.G_opt.step()
 
         # Record loss
@@ -132,7 +155,9 @@ class Trainer:
             labels = labels.cuda().float()
             labels = labels.unsqueeze(1)
             self.num_steps += 1
+
             self._critic_train_iteration(images, labels)
+
             # Only update generator every |critic_iterations| iterations
             if self.num_steps % self.critic_iterations == 0:
                 self._generator_train_iteration(images, labels)
@@ -150,6 +175,26 @@ class Trainer:
             print("\nEpoch {}".format(epoch + 1))
             self._train_epoch(data_loader)
 
+    def save_image_grid(self, tensor, filename, nrow=8, padding=2):
+        # Make a grid from batch tensor
+        grid_image = torchvision.utils.make_grid(
+            tensor, nrow=nrow, padding=padding, normalize=True
+        )
+
+        # Convert to numpy array and then to PIL image
+        grid_image = (
+            grid_image.permute(1, 2, 0)
+            .mul(255)
+            .clamp(0, 255)
+            .to(torch.uint8)
+            .cpu()
+            .numpy()
+        )
+        pil_image = Image.fromarray(grid_image)
+
+        # Save as PNG
+        pil_image.save(filename, bitmap_format="png")
+
     def sample_generator(self, num_samples, labels):
         latent_samples = Variable(self.G.sample_latent(num_samples))
         # correctly different
@@ -157,11 +202,7 @@ class Trainer:
             latent_samples = latent_samples.cuda()
         generated_data = self.G(latent_samples, labels)
         if self.i % 300 == 0:
-            generated_grid = torchvision.utils.make_grid(generated_data.to("cpu"))
-            grid_image = generated_grid.permute(1, 2, 0).cpu().numpy()
-            pil_image = Image.fromarray((grid_image * 255).astype("uint8"))
-            pil_image.save("generated_image.jpg")
-            print("saved")
+            self.save_image_grid(generated_data, "image_grid.png")
 
         return generated_data
 
