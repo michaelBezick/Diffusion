@@ -3,3 +3,4 @@ Test_Files
 *.ckpt
 *.out
 *.generate
+image_grid.png
