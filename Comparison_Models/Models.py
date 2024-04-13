@@ -177,7 +177,7 @@ class LabeledDataset(Dataset):
 
 
 class Generator(nn.Module):
-    def __init__(self, img_size, latent_dim, dim, labels_dim=1):
+    def __init__(self, img_size, latent_dim, dim, labels_dim=1, batch_size=32):
         super(Generator, self).__init__()
 
         self.dim = dim
@@ -188,7 +188,7 @@ class Generator(nn.Module):
 
         self.latent_to_features = nn.Sequential(
             nn.Linear(
-                latent_dim + labels_dim,
+                latent_dim,
                 64,
             ),
             nn.ReLU(),
@@ -203,8 +203,14 @@ class Generator(nn.Module):
         self.resnet5D = ResnetBlockVAE(h_dim, h_dim, (3, 3), h_dim)
         self.resnet6D = ResnetBlockVAE(h_dim, h_dim, (3, 3), h_dim)
 
+        self.SinusoidalPositionalEmbeddings = SinusoidalPositionalEmbeddings(16)
+
+        self.FOM_Conditioner = FOM_Conditioner(
+            batch_size=batch_size, height=8, width=8, embedding_length=16, channels=1
+        )
+
         self.decoder = nn.Sequential(
-            nn.Conv2d(1, h_dim, (1, 1)),
+            nn.Conv2d(2, h_dim, (1, 1)),
             self.resnet1D,
             self.attention1D,
             self.resnet2D,
@@ -220,11 +226,13 @@ class Generator(nn.Module):
 
     def forward(self, input_data, labels):
         # Map latent into appropriate size for transposed convolutions
-        x = torch.cat((input_data, labels), dim=1)
-        x = self.latent_to_features(x)
+        x = self.latent_to_features(input_data)
         # Reshape
         x = x.view(-1, 1, 8, 8)
         # Return generated image
+
+        labels = self.FOM_Conditioner(self.SinusoidalPositionalEmbeddings(labels))
+        x = torch.cat((x, labels), dim=1)
         return self.decoder(x)
 
     def sample_latent(self, num_samples):
@@ -232,7 +240,7 @@ class Generator(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self, img_size, dim, label_dim=1):
+    def __init__(self, img_size, dim, label_dim=1, batch_size=32):
         """
         img_size : (int, int, int)
             Height and width must be powers of 2.  E.g. (32, 32, 1) or
@@ -254,7 +262,7 @@ class Discriminator(nn.Module):
         self.maxPool = nn.MaxPool2d((2, 2), 2)
 
         self.encoder = nn.Sequential(
-            nn.Conv2d(1 + label_dim, dim, kernel_size=(3, 3), padding="same"),
+            nn.Conv2d(2, dim, kernel_size=(3, 3), padding="same"),
             nn.SiLU(),
             self.resnet1E,
             self.resnet2E,
@@ -268,18 +276,21 @@ class Discriminator(nn.Module):
             self.resnet6E,
         )
 
+        self.SinusoidalPositionalEmbeddings = SinusoidalPositionalEmbeddings(16)
+
+        self.FOM_Conditioner = FOM_Conditioner(
+            batch_size=batch_size, height=32, width=32, embedding_length=16, channels=1
+        )
+
         self.decrease_channels = nn.Conv2d(dim, 1, kernel_size=1, stride=1)
 
-        # 4 convolutions of stride 2, i.e. halving of size everytime
-        # So output size will be 8 * (img_size / 2 ^ 4) * (img_size / 2 ^ 4)
         output_size = 64
         self.features_to_prob = nn.Sequential(nn.Linear(output_size, 1), nn.Sigmoid())
 
     def forward(self, input_data, labels):
         batch_size = input_data.size()[0]
 
-        labels = labels.unsqueeze(2).unsqueeze(3)
-        labels = labels.expand(batch_size, 1, 32, 32)
+        labels = self.FOM_Conditioner(self.SinusoidalPositionalEmbeddings(labels))
 
         x = torch.cat((input_data, labels), dim=1)
         x = self.encoder(x)

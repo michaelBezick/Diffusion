@@ -12,8 +12,8 @@ class Trainer:
         discriminator,
         gen_optimizer,
         dis_optimizer,
-        gp_weight=5,
-        critic_iterations=1,
+        gp_weight=3,
+        critic_iterations=5,
         print_every=50,
         use_cuda=True,
     ):

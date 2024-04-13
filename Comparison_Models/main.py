@@ -2,10 +2,11 @@ import numpy as np
 import torch
 import torch.optim as optim
 from Models import Discriminator, Generator, LabeledDataset
+from tensorflow.python.ops.batch_ops import batch
 from torch.utils.data import DataLoader
 from Training import Trainer
 
-batch_size = 20
+batch_size = 32
 
 dataset = np.expand_dims(np.load("../Files/TPV_dataset.npy"), 1)
 normalizedDataset = (dataset - np.min(dataset)) / (np.max(dataset) - np.min(dataset))
@@ -29,8 +30,10 @@ data_loader = DataLoader(
 
 img_size = (32, 32, 1)
 
-generator = Generator(img_size=img_size, latent_dim=64, dim=32).cuda()
-discriminator = Discriminator(img_size=img_size, dim=32).cuda()
+generator = Generator(
+    img_size=img_size, latent_dim=64, dim=32, batch_size=batch_size
+).cuda()
+discriminator = Discriminator(img_size=img_size, dim=32, batch_size=batch_size).cuda()
 
 model_parameters = filter(lambda p: p.requires_grad, generator.parameters())
 params1 = sum([np.prod(p.size()) for p in model_parameters])
@@ -45,8 +48,8 @@ print(f"Total {params1 + params}")
 
 
 # Initialize optimizers
-lr_gen = 1e-3
-lr_disc = 1e-3
+lr_gen = 1e-4
+lr_disc = 1e-4
 
 # betas = (0.9, 0.99)
 # G_optimizer = optim.Adam(generator.parameters(), lr=lr_gen, betas=betas)
