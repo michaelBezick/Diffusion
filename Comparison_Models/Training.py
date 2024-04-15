@@ -52,7 +52,7 @@ class Trainer:
         # Get gradient penalty
         gradient_penalty = self._gradient_penalty(data, generated_data, labels)
         self.losses["GP"].append(gradient_penalty.item())
-        self.logger.add_scalar("gradient_penalty", gradient_penalty.item(), self.i)
+        self.logger.add_scalar("gradient_penalty", gradient_penalty.item(), step = self.i)
 
         # Create total loss and optimize
         d_loss = torch.mean(d_generated) - torch.mean(d_real) + gradient_penalty
@@ -183,7 +183,7 @@ class Trainer:
             grid_image = torchvision.utils.make_grid(
                 generated_data, normalize=True
             )
-            self.logger.add_image("generated images", grid_image)
+            self.logger.add_image("generated images", grid_image, self.i)
 
         return generated_data
 
