@@ -48,10 +48,10 @@ print(f"Total {params1 + params}")
 
 
 # Initialize optimizers
-lr_gen = 1e-3
-lr_disc = 1e-3
+lr_gen = 4e-5
+lr_disc = 4e-5
 
-betas = (0.0, 0.9)
+betas = (0.9, 0.99)
 G_optimizer = optim.Adam(generator.parameters(), lr=lr_gen, betas=betas)
 D_optimizer = optim.Adam(discriminator.parameters(), lr=lr_disc, betas=betas)
 

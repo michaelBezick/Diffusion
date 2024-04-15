@@ -1,7 +1,6 @@
 import torch
 import torchvision
 from PIL import Image
-from torch.autograd import Variable
 from torch.autograd import grad as torch_grad
 
 
@@ -13,7 +12,7 @@ class Trainer:
         gen_optimizer,
         dis_optimizer,
         gp_weight=1,
-        critic_iterations=1,
+        critic_iterations=5,
         print_every=50,
         use_cuda=True,
     ):
@@ -53,13 +52,11 @@ class Trainer:
         self.losses["GP"].append(gradient_penalty.item())
 
         # Create total loss and optimize
-        d_loss = d_generated.mean() - d_real.mean() + gradient_penalty
+        d_loss = torch.mean(d_generated) - torch.mean(d_real) + gradient_penalty
         d_loss.backward()
         self.D_opt.step()
 
         d_loss_without_gradient_penalty = d_generated.mean() - d_real.mean()
-
-        self.D_opt.step()
 
         # Record loss
         self.losses["D"].append(d_loss_without_gradient_penalty.item())
@@ -74,7 +71,7 @@ class Trainer:
 
         # Calculate loss and optimize
         d_generated = self.D(generated_data, labels)
-        g_loss = -d_generated.mean()
+        g_loss = -torch.mean(d_generated)
         g_loss.backward()
         self.G_opt.step()
 
@@ -85,12 +82,11 @@ class Trainer:
         batch_size = real_data.size()[0]
 
         # Calculate interpolation
-        alpha = torch.rand(batch_size, 1, 1, 1)
+        alpha = torch.rand(batch_size, 1, 1, 1, requires_grad=True)
         alpha = alpha.expand_as(real_data)
         if self.use_cuda:
             alpha = alpha.cuda()
         interpolated = alpha * real_data.data + (1 - alpha) * generated_data.data
-        interpolated = interpolated.requires_grad_()
         if self.use_cuda:
             interpolated = interpolated.cuda()
 
@@ -172,7 +168,7 @@ class Trainer:
         pil_image.save(filename, bitmap_format="png")
 
     def sample_generator(self, num_samples, labels):
-        latent_samples = Variable(self.G.sample_latent(num_samples))
+        latent_samples = self.G.sample_latent(num_samples)
         if self.use_cuda:
             latent_samples = latent_samples.cuda()
         generated_data = self.G(latent_samples, labels)

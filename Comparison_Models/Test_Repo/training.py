@@ -92,10 +92,6 @@ class Trainer:
 
         generated_data = self.sample_generator(batch_size)
 
-        if self.i > 300 and self.i < 350:
-            print("GOT HERE")
-            self.save_image_grid(generated_data, "MNIST.png")
-
         # Calculate loss and optimize
         d_generated = self.D(generated_data)
         g_loss = -d_generated.mean()
@@ -113,8 +109,7 @@ class Trainer:
         alpha = alpha.expand_as(real_data)
         if self.use_cuda:
             alpha = alpha.cuda()
-        interpolated = alpha * real_data.data + (1 - alpha) * generated_data.data
-        interpolated = Variable(interpolated, requires_grad=True)
+        interpolated = alpha * real_data + (1 - alpha) * generated_data
         if self.use_cuda:
             interpolated = interpolated.cuda()
 

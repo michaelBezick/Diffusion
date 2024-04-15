@@ -3,7 +3,9 @@ import math as m
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset
-
+import torchvision
+from PIL import Image
+from metalayers import *
 
 class ResnetBlockVAE(nn.Module):
     # Employs intra block skip connection, which needs a (1, 1) convolution to scale to out_channels
@@ -175,7 +177,6 @@ class LabeledDataset(Dataset):
 
         return image[:, 0 : self.size, 0 : self.size], label
 
-
 class Generator(nn.Module):
     def __init__(self, img_size, latent_dim, dim, labels_dim=1, batch_size=32):
         super(Generator, self).__init__()
@@ -186,54 +187,39 @@ class Generator(nn.Module):
         self.img_size = img_size
         self.feature_sizes = (int(self.img_size[0] // 16), int(self.img_size[1] // 16))
 
-        self.latent_to_features = nn.Sequential(
-            nn.Linear(
-                latent_dim,
-                64,
-            ),
-            nn.ReLU(),
-        )
+        self.FC = nn.Sequential(
+                nn.Linear(latent_dim + labels_dim, 512), 
+                nn.ReLU(),
+                nn.Linear(512, 4 * 4 * 64, bias=False),
+                nn.BatchNorm1d(4 * 4 * 64),
+                nn.ReLU(),
 
-        self.attention1D = AttnBlock(h_dim)
-        self.attention2D = AttnBlock(h_dim)
-        self.resnet1D = ResnetBlockVAE(h_dim, h_dim, (3, 3), h_dim)
-        self.resnet2D = ResnetBlockVAE(h_dim, h_dim, (3, 3), h_dim)
-        self.resnet3D = ResnetBlockVAE(h_dim, h_dim, (3, 3), h_dim)
-        self.resnet4D = ResnetBlockVAE(h_dim, h_dim, (3, 3), h_dim)
-        self.resnet5D = ResnetBlockVAE(h_dim, h_dim, (3, 3), h_dim)
-        self.resnet6D = ResnetBlockVAE(h_dim, h_dim, (3, 3), h_dim)
-
-        self.SinusoidalPositionalEmbeddings = SinusoidalPositionalEmbeddings(16)
-
-        self.FOM_Conditioner = FOM_Conditioner(
-            batch_size=batch_size, height=8, width=8, embedding_length=16, channels=1
         )
 
         self.decoder = nn.Sequential(
-            nn.Conv2d(2, h_dim, (1, 1)),
-            self.resnet1D,
-            self.attention1D,
-            self.resnet2D,
-            nn.ConvTranspose2d(h_dim, h_dim, (2, 2), 2),  # 16 x 16
-            self.resnet3D,
-            self.attention2D,
-            self.resnet4D,
-            nn.ConvTranspose2d(h_dim, h_dim, (2, 2), 2),  # 32 x 32
-            self.resnet5D,
-            self.resnet6D,
-            nn.Conv2d(h_dim, 1, (1, 1)),
-        )
+                ConvTranspose2d_meta(64, 64, 5, stride=2, bias=False),
+                nn.BatchNorm2d(64),
+                nn.ReLU(),
+                ConvTranspose2d_meta(64, 32, 5, stride=2, bias=False),
+                nn.BatchNorm2d(32),
+                nn.ReLU(),
+                ConvTranspose2d_meta(32, 16, 5, stride=2, bias=False),
+                nn.BatchNorm2d(16),
+                nn.ReLU(),
+                ConvTranspose2d_meta(16, 1, 5),
+                )
 
-    def forward(self, input_data, labels):
-        # Map latent into appropriate size for transposed convolutions
-        x = self.latent_to_features(input_data)
-        # Reshape
-        x = x.view(-1, 1, 8, 8)
-        # Return generated image
+        self.gkernel = gkern(3, 2)
+        self.tanh = nn.Tanh()
 
-        labels = self.FOM_Conditioner(self.SinusoidalPositionalEmbeddings(labels))
-        x = torch.cat((x, labels), dim=1)
-        return self.decoder(x)
+    def forward(self, input_data: torch.Tensor, labels: torch.Tensor):
+        x = torch.cat([input_data, labels], 1)
+        x = self.FC(x)
+        x = x.view(-1, 64, 4, 4)
+        x = self.decoder(x)
+        x = conv2d_meta(x, self.gkernel)
+
+        return self.tanh(x)
 
     def sample_latent(self, num_samples):
         return torch.randn((num_samples, self.latent_dim))
@@ -251,50 +237,51 @@ class Discriminator(nn.Module):
 
         self.img_size = img_size
 
-        self.attention1E = AttnBlock(dim)
-        self.attention2E = AttnBlock(dim)
-        self.resnet1E = ResnetBlockVAE(dim, dim, (3, 3), dim)
-        self.resnet2E = ResnetBlockVAE(dim, dim, (3, 3), dim)
-        self.resnet3E = ResnetBlockVAE(dim, dim, (3, 3), dim)
-        self.resnet4E = ResnetBlockVAE(dim, dim, (3, 3), dim)
-        self.resnet5E = ResnetBlockVAE(dim, dim, (3, 3), dim)
-        self.resnet6E = ResnetBlockVAE(dim, dim, (3, 3), dim)
-        self.maxPool = nn.MaxPool2d((2, 2), 2)
-
-        self.encoder = nn.Sequential(
-            nn.Conv2d(2, dim, kernel_size=(3, 3), padding="same"),
-            nn.SiLU(),
-            self.resnet1E,
-            self.resnet2E,
-            self.maxPool,  # 16 x 16
-            self.resnet3E,
-            self.attention1E,
-            self.resnet4E,
-            self.maxPool,  # 8 x 8
-            self.resnet5E,
-            self.attention2E,
-            self.resnet6E,
-        )
-
-        self.SinusoidalPositionalEmbeddings = SinusoidalPositionalEmbeddings(16)
-
-        self.FOM_Conditioner = FOM_Conditioner(
-            batch_size=batch_size, height=32, width=32, embedding_length=16, channels=1
-        )
-
-        self.decrease_channels = nn.Conv2d(dim, 1, kernel_size=1, stride=1)
-
-        output_size = 64
-        self.features_to_prob = nn.Sequential(nn.Linear(output_size, 1), nn.Sigmoid())
+        self.CONV = nn.Sequential(
+                Conv2d_meta(1, 64, 5, stride=2),
+                nn.LeakyReLU(0.2),
+                )
+        self.FC = nn.Sequential(
+                nn.Linear(16385, 512),
+                nn.LayerNorm(512),
+                nn.LeakyReLU(0.2),
+                nn.Linear(512, 512),
+                nn.LayerNorm(512),
+                nn.LeakyReLU(0.2),
+                nn.Linear(512, 1),
+                )
+        self.batch_size = batch_size
 
     def forward(self, input_data, labels):
-        batch_size = input_data.size()[0]
 
-        labels = self.FOM_Conditioner(self.SinusoidalPositionalEmbeddings(labels))
+        input_data = input_data + torch.randn_like(input_data, device="cuda") * 0.05
 
-        x = torch.cat((input_data, labels), dim=1)
-        x = self.encoder(x)
-        x = self.decrease_channels(x)
-        x = x.view(batch_size, -1)
+        # self.save_image_grid(input_data, "noised_data.png")
 
-        return self.features_to_prob(x)
+        x = self.CONV(input_data)
+        x = x.view(self.batch_size, -1)
+        x = torch.cat([x, labels], 1)
+        x = self.FC(x)
+
+        return x
+
+
+    def save_image_grid(self, tensor, filename, nrow=8, padding=2):
+        # Make a grid from batch tensor
+        grid_image = torchvision.utils.make_grid(
+            tensor, nrow=nrow, padding=padding, normalize=True
+        )
+
+        # Convert to numpy array and then to PIL image
+        grid_image = (
+            grid_image.permute(1, 2, 0)
+            .mul(255)
+            .clamp(0, 255)
+            .to(torch.uint8)
+            .cpu()
+            .numpy()
+        )
+        pil_image = Image.fromarray(grid_image)
+
+        # Save as PNG
+        pil_image.save(filename, bitmap_format="png")
