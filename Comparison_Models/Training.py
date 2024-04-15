@@ -127,7 +127,7 @@ class Trainer:
 
     def _train_epoch(self, data_loader):
         for i, data in enumerate(data_loader):
-            self.i = i
+            self.i += i
             images, labels = data
             images = images.cuda().float()
             labels = labels.cuda().float()
