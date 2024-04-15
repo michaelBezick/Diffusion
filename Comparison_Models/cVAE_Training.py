@@ -6,7 +6,6 @@ import torch
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
-from torchmetrics.regression import kl_divergence
 
 from LDM_Classes import VAE, LabeledDataset
 
@@ -20,7 +19,7 @@ num_nodes = 1
 num_workers = 1
 accelerator = "gpu"
 batch_size = 100
-epochs = 10_000
+epochs = 5_000
 lr = 1e-3
 perceptual_loss_scale = 1
 kl_divergence_scale = 0.3
@@ -63,7 +62,7 @@ train_loader = DataLoader(
     drop_last=True,
 )
 
-logger = TensorBoardLogger(save_dir="logs/", name="VAE")
+logger = TensorBoardLogger(save_dir="logs/", name="cVAE")
 
 lr_monitor = LearningRateMonitor(logging_interval="step")
 
