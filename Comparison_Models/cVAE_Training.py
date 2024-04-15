@@ -14,15 +14,15 @@ GOAL: Make a BVAE that compresses 32x32 space to 8x8. No energy correlation.
 """
 
 resume_from_checkpoint = False
-num_devices = 1
-num_nodes = 1
+num_devices = 2
+num_nodes = 2
 num_workers = 1
 accelerator = "gpu"
 batch_size = 100
 epochs = 5_000
 lr = 1e-3
 perceptual_loss_scale = 1
-kl_divergence_scale = 0.3
+kl_divergence_scale = 0.1
 
 ##################################################
 
