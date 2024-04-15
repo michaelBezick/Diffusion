@@ -2,7 +2,7 @@ import torch
 import torchvision
 from PIL import Image
 from torch.autograd import grad as torch_grad
-
+from torch.utils.tensorboard import SummaryWriter
 
 class Trainer:
     def __init__(
@@ -11,6 +11,7 @@ class Trainer:
         discriminator,
         gen_optimizer,
         dis_optimizer,
+        logger,
         gp_weight=1,
         critic_iterations=5,
         print_every=50,
@@ -27,6 +28,7 @@ class Trainer:
         self.critic_iterations = critic_iterations
         self.print_every = print_every
         self.i = 0
+        self.logger = logger
 
         if self.use_cuda:
             self.G.cuda()
@@ -50,6 +52,7 @@ class Trainer:
         # Get gradient penalty
         gradient_penalty = self._gradient_penalty(data, generated_data, labels)
         self.losses["GP"].append(gradient_penalty.item())
+        self.logger.add_scalar("gradient_penalty", gradient_penalty.item(), self.i)
 
         # Create total loss and optimize
         d_loss = torch.mean(d_generated) - torch.mean(d_real) + gradient_penalty
@@ -60,6 +63,7 @@ class Trainer:
 
         # Record loss
         self.losses["D"].append(d_loss_without_gradient_penalty.item())
+        self.logger.add_scalar("d_loss_without_gradient_penalty", d_loss_without_gradient_penalty.item(), self.i)
 
     def _generator_train_iteration(self, data, labels):
         """ """
@@ -77,6 +81,7 @@ class Trainer:
 
         # Record loss
         self.losses["G"].append(g_loss.item())
+        self.logger.add_scalar("generator loss", g_loss.item(), self.i)
 
     def _gradient_penalty(self, real_data, generated_data, labels):
         batch_size = real_data.size()[0]
@@ -111,6 +116,7 @@ class Trainer:
         gradients = gradients.view(batch_size, -1)
 
         self.losses["gradient_norm"].append(gradients.norm(dim=1).mean().item())
+        self.logger.add_scalar("gradient_norm", gradients.norm(dim=1).mean().item(), self.i)
 
         # Derivatives of the gradient close to 0 can cause problems because of
         # the square root, so manually calculate norm and add epsilon
@@ -173,7 +179,11 @@ class Trainer:
             latent_samples = latent_samples.cuda()
         generated_data = self.G(latent_samples, labels)
         if self.i % 300 == 0:
-            self.save_image_grid(generated_data, "image_grid.png")
+
+            grid_image = torchvision.utils.make_grid(
+                generated_data, normalize=True
+            )
+            self.logger.add_image("generated images", grid_image)
 
         return generated_data
 

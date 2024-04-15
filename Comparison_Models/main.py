@@ -2,9 +2,9 @@ import numpy as np
 import torch
 import torch.optim as optim
 from Models import Discriminator, Generator, LabeledDataset
-from tensorflow.python.ops.batch_ops import batch
 from torch.utils.data import DataLoader
 from Training import Trainer
+from torch.utils.tensorboard.writer import SummaryWriter
 
 batch_size = 100
 
@@ -58,6 +58,8 @@ D_optimizer = optim.Adam(discriminator.parameters(), lr=lr_disc, betas=betas)
 # G_optimizer = optim.Adam(generator.parameters(), lr=lr_gen)  # betas=betas)
 # D_optimizer = optim.Adam(discriminator.parameters(), lr=lr_disc)  # betas=betas)
 
+logger = SummaryWriter(log_dir="logs/", comment="WGAN")
+
 # Train model
 epochs = 5000
 trainer = Trainer(
@@ -65,6 +67,7 @@ trainer = Trainer(
     discriminator,
     G_optimizer,
     D_optimizer,
+    logger=logger,
     use_cuda=torch.cuda.is_available(),
 )
 trainer.train(data_loader, epochs)
