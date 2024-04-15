@@ -1,2 +1,3 @@
 LDM: 6.4 million
-WGAN: 6.4 million
+WGAN: 9 million
+cVAE: 8.6 million

@@ -1,11 +1,220 @@
 import math as m
+import lightning as pl
 
 import torch
-import torch.nn as nn
 from torch.utils.data import Dataset
 import torchvision
 from PIL import Image
 from metalayers import *
+from torch import nn, optim
+
+
+class cVAE(pl.LightningModule):
+    """
+    Variational autoencoder with UNet structure.
+    """
+
+    def __init__(
+        self,
+        in_channels=1,
+        h_dim=32,
+        lr=1e-3,
+        batch_size=100,
+        perceptual_loss_scale=1.0,
+        kl_divergence_scale=1.0,
+    ):
+        super().__init__()
+
+        self.batch_size = batch_size
+
+        self.lr = lr
+
+        self.perceptual_loss_scale = perceptual_loss_scale
+        self.kl_divergence_scale = kl_divergence_scale
+
+        self.attention1E = AttnBlock(h_dim)
+        self.attention2E = AttnBlock(h_dim)
+        self.resnet1E = ResnetBlockVAE(h_dim, h_dim, (3, 3), h_dim)
+        self.resnet2E = ResnetBlockVAE(h_dim, h_dim, (3, 3), h_dim)
+        self.resnet3E = ResnetBlockVAE(h_dim, h_dim, (3, 3), h_dim)
+        self.resnet4E = ResnetBlockVAE(h_dim, h_dim, (3, 3), h_dim)
+        self.resnet5E = ResnetBlockVAE(h_dim, h_dim, (3, 3), h_dim)
+        self.resnet6E = ResnetBlockVAE(h_dim, h_dim, (3, 3), h_dim)
+        self.maxPool = nn.MaxPool2d((2, 2), 2)
+
+        self.encoder = nn.Sequential(
+            nn.Conv2d(in_channels, h_dim, kernel_size=(3, 3), padding="same"),
+            nn.SiLU(),
+            self.resnet1E,
+            self.resnet2E,
+            self.maxPool,  # 16 x 16
+            self.resnet3E,
+            self.attention1E,
+            self.resnet4E,
+            self.maxPool,  # 8 x 8
+            self.resnet5E,
+            self.attention2E,
+            self.resnet6E,
+        )
+
+        self.to_mu = nn.Conv2d(h_dim, 1, (1, 1))
+        self.to_sigma = nn.Conv2d(h_dim, 1, (1, 1))
+
+        self.attention1D = AttnBlock(h_dim)
+        self.attention2D = AttnBlock(h_dim)
+        self.resnet1D = ResnetBlockVAE(h_dim, h_dim, (3, 3), h_dim)
+        self.resnet2D = ResnetBlockVAE(h_dim, h_dim, (3, 3), h_dim)
+        self.resnet3D = ResnetBlockVAE(h_dim, h_dim, (3, 3), h_dim)
+        self.resnet4D = ResnetBlockVAE(h_dim, h_dim, (3, 3), h_dim)
+        self.resnet5D = ResnetBlockVAE(h_dim, h_dim, (3, 3), h_dim)
+        self.resnet6D = ResnetBlockVAE(h_dim, h_dim, (3, 3), h_dim)
+
+        self.decoder = nn.Sequential(
+            nn.Conv2d(1, h_dim, (1, 1)),
+            self.resnet1D,
+            self.attention1D,
+            self.resnet2D,
+            nn.ConvTranspose2d(h_dim, h_dim, (2, 2), 2),  # 16 x 16
+            self.resnet3D,
+            self.attention2D,
+            self.resnet4D,
+            nn.ConvTranspose2d(h_dim, h_dim, (2, 2), 2),  # 32 x 32
+            self.resnet5D,
+            self.resnet6D,
+            nn.Conv2d(h_dim, 1, (1, 1)),
+        )
+
+        self.perceptual_loss = VGGPerceptualLoss()
+        self.FOM_Conditioner = nn.Linear(1, 32 * 32)
+
+    def encode(self, x):
+        h = self.encoder(x)
+        mu = self.to_mu(h)
+        sigma = self.to_sigma(h)
+        return mu, sigma
+
+    def decode(self, z):
+        return self.decoder(z)
+
+    def training_step(self, batch, batch_idx):
+        images, FOMs = batch
+
+        FOMs = self.FOM_Conditioner(FOMs).view(-1, 1, 32, 32)
+
+        x = torch.cat([images, FOMs], dim = 1)
+
+        mu, sigma = self.encode(images)
+        epsilon = torch.randn_like(sigma)
+        z_reparameterized = mu + torch.multiply(sigma, epsilon)
+
+        x_hat = self.decode(z_reparameterized)
+
+        kl_divergence = -0.5 * torch.mean(
+            1 + torch.log(sigma.pow(2)) - mu.pow(2) - sigma.pow(2)
+        )
+        perceptual_loss = self.perceptual_loss(x, x_hat)
+
+        loss = (
+            perceptual_loss * self.perceptual_loss_scale
+            + kl_divergence * self.kl_divergence_scale
+        )
+
+        self.log("Perceptual Loss", perceptual_loss)
+        self.log("kl_divergence", kl_divergence)
+        self.log("Total loss", loss)
+
+        # logging generated images
+        sample_imgs_generated = x_hat[:30]
+        sample_imgs_original = x[:30]
+        gridGenerated = torchvision.utils.make_grid(sample_imgs_generated)
+        gridOriginal = torchvision.utils.make_grid(sample_imgs_original)
+
+        """Tensorboard logging"""
+
+        if self.global_step % 1000 == 0:
+            self.logger.experiment.add_image(
+                "Generated_images", gridGenerated, self.global_step
+            )
+            self.logger.experiment.add_image(
+                "Original_images", gridOriginal, self.global_step
+            )
+
+        return loss
+
+    def configure_optimizers(self):
+        optimizer = optim.Adam(self.parameters(), lr=self.lr)
+        return optimizer
+
+class VGGPerceptualLoss(torch.nn.Module):
+    """
+    Returns perceptual loss of two batches of images
+    """
+
+    def __init__(self, resize=True):
+        super(VGGPerceptualLoss, self).__init__()
+        """
+        You can adjust the indices of the appended blocks to change
+        capacity and size of loss model.
+        """
+        blocks = []
+        blocks.append(
+            torchvision.models.vgg16(weights=VGG16_Weights.DEFAULT).features[:4].eval()
+        )
+        blocks.append(
+            torchvision.models.vgg16(weights=VGG16_Weights.DEFAULT).features[4:8].eval()
+        )
+        blocks.append(
+            torchvision.models.vgg16(weights=VGG16_Weights.DEFAULT)
+            .features[8:14]
+            .eval()
+        )
+        blocks.append(
+            torchvision.models.vgg16(weights=VGG16_Weights.DEFAULT)
+            .features[14:20]
+            .eval()
+        )
+        for bl in blocks:
+            for p in bl.parameters():
+                p.requires_grad = False
+        self.blocks = torch.nn.ModuleList(blocks)
+        self.transform = torch.nn.functional.interpolate
+        self.resize = resize
+        self.register_buffer(
+            "mean", torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)
+        )
+        self.register_buffer(
+            "std", torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
+        )
+
+    def forward(self, input, target, feature_layers=[0, 1, 2, 3], style_layers=[]):
+        if input.shape[1] != 3:
+            input = input.repeat(1, 3, 1, 1)
+            target = target.repeat(1, 3, 1, 1)
+        input = (input - self.mean) / self.std
+        target = (target - self.mean) / self.std
+        if self.resize:
+            input = self.transform(
+                input, mode="bilinear", size=(224, 224), align_corners=False
+            )
+            target = self.transform(
+                target, mode="bilinear", size=(224, 224), align_corners=False
+            )
+        loss = 0.0
+        x = input
+        y = target
+        for i, block in enumerate(self.blocks):
+            x = block(x)
+            y = block(y)
+            if i in feature_layers:
+                loss += torch.nn.functional.l1_loss(x, y)
+            if i in style_layers:
+                act_x = x.reshape(x.shape[0], x.shape[1], -1)
+                act_y = y.reshape(y.shape[0], y.shape[1], -1)
+                gram_x = act_x @ act_x.permute(0, 2, 1)
+                gram_y = act_y @ act_y.permute(0, 2, 1)
+                loss += torch.nn.functional.l1_loss(gram_x, gram_y)
+
+        return loss
 
 class ResnetBlockVAE(nn.Module):
     # Employs intra block skip connection, which needs a (1, 1) convolution to scale to out_channels
