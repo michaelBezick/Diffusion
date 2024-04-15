@@ -1,2 +1,5 @@
 LDM: 6.4 million
-WGAN: 6.4 million
+  VAE: 1115 epochs
+  LDM: 3552 epochs
+WGAN: 9 million
+cVAE: 8.6 million
