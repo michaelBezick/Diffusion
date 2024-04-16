@@ -3,13 +3,13 @@ import os
 
 from LDM_Classes import LDM, VAE, AttentionUNet
 
-experiment_name = "Experiment_5"
-experiment_notes = "Having sampling mean start and end at 1.8 with variance 0.1. Will give some variation of conditioning during training"
+experiment_name = "Experiment_6"
+experiment_notes = "Idea: have the sampling scheme similar to WGAN scheme.\nHave new FOM samples each set of 100 samples, and keep them constant\nthroughout generation process. Mean of 1.8 and variance of 0.1.\nVariable conditioning false."
 num_samples = 20_000
-batch_size = 1000
-mean = 1.7
-variance = 0.1
-variable_conditioning = True
+batch_size = 100
+mean = 1.8
+variance = 0.2
+variable_conditioning = False
 
 checkpoint_path_LDM = "./logs/LDM/version_1/checkpoints/epoch=3552-step=106590.ckpt"
 ############################################################
@@ -34,11 +34,18 @@ ldm = LDM.load_from_checkpoint(
 ).to("cuda").eval()
 torch.set_float32_matmul_precision("high")
 
-dataset = None
+dataset = []
+FOM_values_list = []
 if variable_conditioning == False:
-    dataset = ldm.create_dataset(num_samples=num_samples, FOM_values=FOM_values)
+    for i in range(num_samples // batch_size):
+        FOM_values = variance * torch.randn(batch_size) + mean
+        FOM_values_list.extend(FOM_values.numpy())
+        FOM_values = FOM_values.float()
+        FOM_values = FOM_values.to("cuda")
+        samples = ldm.create_dataset(num_samples=batch_size, FOM_values=FOM_values)
+        dataset.extend(samples)
 else:
-    dataset = ldm.create_dataset_variable_FOM(num_samples=num_samples, start_mean=1.4, end_mean=1.8, variance=0.1)
+    samples = ldm.create_dataset_variable_FOM(num_samples=num_samples, start_mean=1.4, end_mean=1.8, variance=0.1)
 
 dataset = torch.from_numpy(dataset)
 
