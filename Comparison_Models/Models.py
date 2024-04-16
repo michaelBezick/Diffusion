@@ -59,7 +59,7 @@ class cVAE(pl.LightningModule):
         self.maxPool = nn.MaxPool2d((2, 2), 2)
 
         self.encoder = nn.Sequential(
-            nn.Conv2d(in_channels, h_dim, kernel_size=(3, 3), padding="same"),
+            nn.Conv2d(2, h_dim, kernel_size=(3, 3), padding="same"),
             nn.SiLU(),
             self.resnet1E,
             self.resnet2E,
@@ -114,12 +114,17 @@ class cVAE(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         images, FOMs = batch
+        FOMs = FOMs.unsqueeze(1)
+        images = images.float()
+        FOMs = FOMs.float()
 
-        FOMs = self.FOM_Conditioner(FOMs).view(-1, 1, 32, 32)
+
+        FOMs = self.FOM_Conditioner(FOMs)
+        FOMs = FOMs.view(-1, 1, 32, 32)
 
         x = torch.cat([images, FOMs], dim = 1)
 
-        mu, sigma = self.encode(images)
+        mu, sigma = self.encode(x)
         epsilon = torch.randn_like(sigma)
         z_reparameterized = mu + torch.multiply(sigma, epsilon)
 
@@ -128,7 +133,7 @@ class cVAE(pl.LightningModule):
         kl_divergence = -0.5 * torch.mean(
             1 + torch.log(sigma.pow(2) + 1e-12) - mu.pow(2) - sigma.pow(2)
         )
-        perceptual_loss = self.perceptual_loss(x, x_hat)
+        perceptual_loss = self.perceptual_loss(images, x_hat)
 
         loss = (
             perceptual_loss * self.perceptual_loss_scale
