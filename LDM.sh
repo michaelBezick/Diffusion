@@ -1,6 +1,6 @@
 #!/bin/bash
-module load anaconda
 cd $SLURM_SUBMIT_DIR
+module load anaconda/2020.11-py38
 export WORLD_SIZE=NUM_GPUS
 export NODE_RANK=RANK
 export MASTER_ADDR=MASTER_NODE_IP

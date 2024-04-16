@@ -1,5 +1,5 @@
 #!/bin/bash
-module load anaconda
+module load anaconda/2020.11-py38
 cd $SLURM_SUBMIT_DIR
 export WORLD_SIZE=NUM_GPUS
 export NODE_RANK=RANK
