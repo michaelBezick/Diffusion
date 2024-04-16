@@ -86,7 +86,7 @@ class cVAE(pl.LightningModule):
         self.resnet6D = ResnetBlockVAE(h_dim, h_dim, (3, 3), h_dim)
 
         self.decoder = nn.Sequential(
-            nn.Conv2d(1, h_dim, (1, 1)),
+            nn.Conv2d(2, h_dim, (1, 1)),
             self.resnet1D,
             self.attention1D,
             self.resnet2D,
@@ -102,6 +102,7 @@ class cVAE(pl.LightningModule):
 
         self.perceptual_loss = VGGPerceptualLoss()
         self.FOM_Conditioner = nn.Linear(1, 32 * 32)
+        self.FOM_Conditioner_latent = nn.Linear(1, 8 * 8)
 
     def encode(self, x):
         h = self.encoder(x)
@@ -120,13 +121,17 @@ class cVAE(pl.LightningModule):
 
 
         FOMs = self.FOM_Conditioner(FOMs)
+        FOMs_latent = self.FOM_Conditioner_latent(FOMs)
         FOMs = FOMs.view(-1, 1, 32, 32)
+        FOMs_latent = FOMs_latent.view(-1, 1, 8, 8)
 
         x = torch.cat([images, FOMs], dim = 1)
 
         mu, sigma = self.encode(x)
         epsilon = torch.randn_like(sigma)
         z_reparameterized = mu + torch.multiply(sigma, epsilon)
+
+        z_reparameterized = torch.cat([z_reparameterized, FOMs_latent], dim=1)
 
         x_hat = self.decode(z_reparameterized)
 
