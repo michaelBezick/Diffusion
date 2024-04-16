@@ -23,7 +23,7 @@ batch_size = 100
 epochs = 10_000
 lr = 1e-3
 perceptual_loss_scale = 1
-kl_divergence_scale = 0.3
+kl_divergence_scale = 0.1
 
 ##################################################
 

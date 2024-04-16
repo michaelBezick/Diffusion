@@ -7,7 +7,23 @@ import torchvision
 from PIL import Image
 from metalayers import *
 from torch import nn, optim
+from torchvision.models import VGG16_Weights
 
+import math as m
+from enum import Enum
+
+import numpy as np
+import pytorch_lightning as pl
+import tensorflow as tf
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torchvision
+from torch import nn, optim
+from torch.distributions.multivariate_normal import MultivariateNormal
+from torch.utils.data import Dataset
+from torchvision.models import VGG16_Weights
+from tqdm import tqdm
 
 class cVAE(pl.LightningModule):
     """
@@ -110,7 +126,7 @@ class cVAE(pl.LightningModule):
         x_hat = self.decode(z_reparameterized)
 
         kl_divergence = -0.5 * torch.mean(
-            1 + torch.log(sigma.pow(2)) - mu.pow(2) - sigma.pow(2)
+            1 + torch.log(sigma.pow(2) + 1e-12) - mu.pow(2) - sigma.pow(2)
         )
         perceptual_loss = self.perceptual_loss(x, x_hat)
 
