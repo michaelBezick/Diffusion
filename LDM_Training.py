@@ -22,11 +22,11 @@ lr_DDPM = 1e-3
 perceptual_loss_scale = 1
 kl_divergence_scale = 0.3
 
-resume_from_checkpoint = False
+resume_from_checkpoint = True
 
 checkpoint_path_VAE = "./logs/VAE/version_0/checkpoints/epoch=1115-step=33480.ckpt"
 
-#checkpoint_path_LDM = "/home/mbezick/Desktop/logs/LDM/version_0/checkpoints/good.ckpt"
+checkpoint_path_LDM = "/home/mbezick/Desktop/logs/LDM/version_0/checkpoints/good.ckpt"
 
 ###########################################################################################
 
