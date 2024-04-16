@@ -1,5 +1,6 @@
 import torch
 import os
+import numpy as np
 
 from LDM_Classes import LDM, VAE, AttentionUNet
 
@@ -47,7 +48,7 @@ if variable_conditioning == False:
 else:
     samples = ldm.create_dataset_variable_FOM(num_samples=num_samples, start_mean=1.4, end_mean=1.8, variance=0.1)
 
-dataset = torch.from_numpy(dataset)
+dataset = torch.from_numpy(np.array(dataset))
 
 dir_path = "./Generated_Datasets/" + experiment_name + "/"
 
