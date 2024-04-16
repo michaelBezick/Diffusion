@@ -1,1 +1,2 @@
-Having sampling mean start and end at 1.8 with variance 0.1. Will give some variation of conditioning during training
+Having sampling mean start and end at 1.8 with variance 0.1.
+Will give some variation of conditioning during training

@@ -3,6 +3,7 @@ import statistics
 import matplotlib.pyplot as plt
 import torch
 import torchvision
+from PIL import Image
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -12,11 +13,28 @@ checkpoint_path_LDM = "./logs/LDM/version_1/checkpoints/epoch=3552-step=106590.c
 experiment_name = "Experiment_3"
 
 num_samples = 20_000
-batch_size = 1000
-plot = True
+batch_size = 100
+plot = False
 mean = 1.8
 variance = 0.2
 ############################################################
+
+
+def save_image_grid(tensor, filename, nrow=8, padding=2):
+    # Make a grid from batch tensor
+    grid_image = torchvision.utils.make_grid(
+        tensor, nrow=nrow, padding=padding, normalize=True
+    )
+
+    # Convert to numpy array and then to PIL image
+    grid_image = (
+        grid_image.permute(1, 2, 0).mul(255).clamp(0, 255).to(torch.uint8).cpu().numpy()
+    )
+    pil_image = Image.fromarray(grid_image)
+
+    # Save as PNG
+    pil_image.save(filename, bitmap_format="png")
+
 
 dataset = torch.load(
     "./Generated_Datasets/" + experiment_name + "/generated_dataset.pt"
@@ -41,8 +59,12 @@ train_loader = DataLoader(
 
 FOM_measurements = []
 
+i = 0
 for batch in tqdm(train_loader):
-    grid = torchvision.utils.make_grid(batch)
+    if i == 0:
+        save_image_grid(batch, "Diffusion_Grid.png")
+        grid = torchvision.utils.make_grid(batch)
+        i = 1
     FOM = FOM_calculator(torch.permute(batch.repeat(1, 3, 1, 1), (0, 2, 3, 1)).numpy())
     FOM_measurements.extend(FOM.numpy().flatten().tolist())
 
