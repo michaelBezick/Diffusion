@@ -49,6 +49,7 @@ else:
     samples = ldm.create_dataset_variable_FOM(num_samples=num_samples, start_mean=1.4, end_mean=1.8, variance=0.1)
 
 dataset = torch.from_numpy(np.array(dataset))
+FOM_values_list = torch.from_numpy(np.array(dataset))
 
 dir_path = "./Generated_Datasets/" + experiment_name + "/"
 
@@ -57,6 +58,6 @@ if not os.path.isdir(dir_path):
 
 torch.save(dataset, dir_path + "generated_dataset.pt")
 if variable_conditioning == False:
-    torch.save(FOM_values, dir_path + "FOM_values.pt")
+    torch.save(FOM_values_list, dir_path + "FOM_values.pt")
 with open(dir_path + "Experiment_Notes.txt", "w") as file:
     file.write(experiment_notes)
