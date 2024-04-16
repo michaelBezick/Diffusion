@@ -118,10 +118,11 @@ class cVAE(pl.LightningModule):
         FOMs = FOMs.unsqueeze(1)
         images = images.float()
         FOMs = FOMs.float()
+        FOMs_before = FOMs
 
 
-        FOMs = self.FOM_Conditioner(FOMs)
-        FOMs_latent = self.FOM_Conditioner_latent(FOMs)
+        FOMs = self.FOM_Conditioner(FOMs_before)
+        FOMs_latent = self.FOM_Conditioner_latent(FOMs_before)
         FOMs = FOMs.view(-1, 1, 32, 32)
         FOMs_latent = FOMs_latent.view(-1, 1, 8, 8)
 
