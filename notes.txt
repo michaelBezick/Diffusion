@@ -8,3 +8,6 @@ Perhaps the gradient would be too massive due to the many sampling steps, so exp
 
 Order of priority:
   1. get WGAN-GP, cVAE models created
+
+
+TODO: run the new sampling scheme with new model
