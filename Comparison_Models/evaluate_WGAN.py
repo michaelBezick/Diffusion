@@ -7,11 +7,14 @@ from Models import Generator
 from PIL import Image
 from tqdm import tqdm
 
+create_dataset = False
+
 img_size = (32, 32, 1)
 batch_size = 100
 generator = Generator(img_size=img_size, latent_dim=64, dim=32, batch_size=batch_size)
 generator.load_state_dict(torch.load("./gen_mnist_model.pt"))
 generator.eval()
+
 
 
 def save_image_grid(tensor, filename, nrow=8, padding=2):
@@ -71,7 +74,8 @@ with torch.no_grad():
         labels = variance * torch.randn((batch_size, 1), device="cuda") + mean
         labels_list.extend(labels.cpu().detach().numpy())
         images = generator(noise, labels)
-        dataset.extend(images.detach().cpu().numpy())
+        if create_dataset:
+            dataset.extend(images.detach().cpu().numpy())
         images = expand_output(images, batch_size)
         if i == 0:
             save_image_grid(images, "WGAN_Sample.png")
@@ -81,12 +85,12 @@ with torch.no_grad():
 
         FOMs_list.extend(FOMs.numpy().flatten().tolist())
 
-dataset = torch.from_numpy(np.array(dataset))
-dataset = (dataset - torch.min(dataset)) / (torch.max(dataset) - torch.min(dataset))
-dataset = dataset.to(torch.half)
-dataset = dataset.numpy()
-
-np.save("WGAN_dataset.npy", dataset)
+if create_dataset:
+    dataset = torch.from_numpy(np.array(dataset))
+    dataset = (dataset - torch.min(dataset)) / (torch.max(dataset) - torch.min(dataset))
+    dataset = dataset.to(torch.half)
+    dataset = dataset.numpy()
+    np.save("WGAN_dataset.npy", dataset)
 
 plt.figure()
 plt.scatter(labels_list, FOMs_list)
