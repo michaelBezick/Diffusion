@@ -11,14 +11,14 @@ batch_size = 100
 lr = 1e-3
 perceptual_loss_scale = 1
 kl_divergence_scale = 0.1
-vae = cVAE(in_channels=1, h_dim=128, batch_size=batch_size, lr=lr, kl_divergence_scale=kl_divergence_scale, perceptual_loss_scale=perceptual_loss_scale)
-vae.load_state_dict(torch.load("./logs/cVAE/version_1/checkpoints/epoch=1088-step=32670.ckpt"))
+checkpoint_path = "./logs/cVAE/version_0/checkpoints/epoch=1098-step=32970.ckpt" 
+vae = cVAE.load_from_checkpoint(checkpoint_path,n_channels=1, h_dim=128, batch_size=batch_size, lr=lr, kl_divergence_scale=kl_divergence_scale, perceptual_loss_scale=perceptual_loss_scale)
 vae.eval()
 
 def save_image_grid(tensor, filename, nrow=8, padding=2):
     # Make a grid from batch tensor
     grid_image = torchvision.utils.make_grid(
-        tensor, nrow=nrow, padding=padding, normalize=True
+            tensor, nrow=nrow, padding=padding, normalize=True
     )
 
     # Convert to numpy array and then to PIL image
@@ -54,7 +54,7 @@ num_samples = 20_000
 
 plot = True
 mean = 1.8
-variance = 0.2
+variance = 0.1
 
 FOM_calculator = load_FOM_model("../Files/VGGnet.json", "../Files/VGGnet_weights.h5")
 
@@ -68,12 +68,12 @@ with torch.no_grad():
         labels = variance * torch.randn((batch_size, 1), device="cuda") + mean
         noise = torch.randn((batch_size, 1, 8, 8), device="cuda") #standard normal, probably fine
         labels_list.extend(labels.cpu().detach().numpy())
-        proj = vae.FOM_Conditioner_latent(labels)
+        proj = vae.FOM_Conditioner_latent(labels).view(-1, 1, 8, 8)
         cat = torch.cat([noise, proj], dim = 1)
         images = vae.decode(cat)
         images = expand_output(images, batch_size)
         if i == 0:
-            save_image_grid(images, "WGAN_Sample.png")
+            save_image_grid(images, "cVAE_Sample.png")
         FOMs = FOM_calculator(
             torch.permute(images.repeat(1, 3, 1, 1), (0, 2, 3, 1)).cpu().numpy()
         )
@@ -82,12 +82,12 @@ with torch.no_grad():
 
 plt.figure()
 plt.scatter(labels_list, FOMs_list)
-plt.title("WGAN conditioning FOM values versus generated FOM values")
+plt.title("cVAE conditioning FOM values versus generated FOM values")
 plt.xlabel("Conditioning FOM values")
 plt.ylabel("Generated FOM values")
 plt.plot()
-plt.savefig("WGAN_Scatter.png", dpi=300)
+plt.savefig("cVAE_Scatter.png", dpi=300)
 
-with open("WGAN_Evaluation.txt", "w") as file:
+with open("cVAE_Evaluation.txt", "w") as file:
     file.write(f"FOM max: {max(FOMs_list)}\n")
     file.write(f"FOM mean: {sum(FOMs_list) / len(FOMs_list)}")
