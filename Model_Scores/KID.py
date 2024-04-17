@@ -28,18 +28,16 @@ generated_dataset = torch.load("../Generated_Datasets/Experiment_8/generated_dat
 generated_dataset = (generated_dataset - torch.min(generated_dataset)) / (torch.max(generated_dataset) - torch.min(generated_dataset))
 original_dataset = (original_dataset - torch.min(original_dataset)) / (torch.max(original_dataset) - torch.min(original_dataset))
 
-generated_dataset = generated_dataset * 255
-original_dataset = original_dataset * 255
-
 generated_dataset = expand_output(generated_dataset, 20_000)
-generated_dataset = generated_dataset.to(torch.uint8)
-original_dataset = original_dataset.to(torch.uint8)
 
 generated_dataset = generated_dataset.expand(20_000, 3, 64, 64)
 original_dataset = original_dataset.unsqueeze(1).expand(12_000, 3, 64, 64)
+
+generated_dataset = generated_dataset.to(torch.half)
+original_dataset = original_dataset.to(torch.half)
 
 generated_dataset = generated_dataset.numpy()
 original_dataset = original_dataset.numpy()
 
 np.save("generated_dataset_LDM.npy", generated_dataset)
-np.save("original_dataset.npy", original_dataset)
+# np.save("original_dataset.npy", original_dataset)

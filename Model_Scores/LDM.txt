@@ -1,0 +1,2 @@
+KID (../../Diffusion/Model_Scores/generated_dataset_LDM.npy): 0.036 (0.002)
+FID (../../Diffusion/Model_Scores/generated_dataset_LDM.npy): 49.54 (0.631)

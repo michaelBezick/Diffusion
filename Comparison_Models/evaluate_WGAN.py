@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import numpy as np
 import tensorflow as tf
 import torch
 import torchvision
@@ -62,6 +63,8 @@ FOMs_list = []
 
 generator = generator.cuda()
 
+dataset = []
+
 with torch.no_grad():
     for i in tqdm(range(num_samples // batch_size)):
         noise = generator.sample_latent(batch_size).cuda()
@@ -76,6 +79,11 @@ with torch.no_grad():
         )
 
         FOMs_list.extend(FOMs.numpy().flatten().tolist())
+        dataset.extend(images.detach().cpu().numpy())
+
+dataset = torch.from_numpy(np.array(dataset)).to(torch.half)
+
+torch.save(dataset, "WGAN_dataset.pt")
 
 plt.figure()
 plt.scatter(labels_list, FOMs_list)

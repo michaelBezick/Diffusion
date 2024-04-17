@@ -1,11 +1,18 @@
 import matplotlib.pyplot as plt
+import numpy as np
 import tensorflow as tf
 import torch
+from torch.utils.data import Dataset, dataloader
+from torch.utils.data import DataLoader
 import torchvision
 from Models import Generator
 from PIL import Image
 from tqdm import tqdm
 from Models import cVAE
+
+"""
+NEW STRATEGY: Latent point generated through randomly choosing from dataset
+"""
 
 batch_size = 100
 lr = 1e-3
@@ -14,6 +21,34 @@ kl_divergence_scale = 0.1
 checkpoint_path = "./logs/cVAE/version_0/checkpoints/epoch=1098-step=32970.ckpt" 
 vae = cVAE.load_from_checkpoint(checkpoint_path,n_channels=1, h_dim=128, batch_size=batch_size, lr=lr, kl_divergence_scale=kl_divergence_scale, perceptual_loss_scale=perceptual_loss_scale)
 vae.eval()
+
+dataset = np.expand_dims(np.load("../Files/TPV_dataset.npy"), 1)
+normalizedDataset = (dataset - np.min(dataset)) / (np.max(dataset) - np.min(dataset))
+
+normalizedDataset = np.multiply(normalizedDataset, 2) - 1
+
+normalizedDataset = normalizedDataset.astype(np.float32)
+
+dataset = torch.from_numpy(normalizedDataset)
+
+class LabeledDataset(Dataset):
+    def __init__(self, images, labels, size=32, transform=None):
+        self.images = images
+        self.labels = labels
+        self.transform = transform
+        self.size = size
+
+    def __len__(self):
+        return len(self.labels)
+
+    def __getitem__(self, idx):
+        image = self.images[idx]
+        label = self.labels[idx]
+
+        if self.transform:
+            image = self.transform(image)
+
+        return image[:, 0 : self.size, 0 : self.size], label
 
 def save_image_grid(tensor, filename, nrow=8, padding=2):
     # Make a grid from batch tensor
@@ -58,27 +93,60 @@ variance = 0.1
 
 FOM_calculator = load_FOM_model("../Files/VGGnet.json", "../Files/VGGnet_weights.h5")
 
+labels = torch.load("../Files/FOM_labels.pt")
+
+labeled_dataset = LabeledDataset(dataset, labels)
+
+train_loader = DataLoader(
+    labeled_dataset,
+    batch_size=batch_size,
+    shuffle=True,
+    drop_last=True,
+)
+
 labels_list = []
 FOMs_list = []
 
 vae = vae.cuda()
 
 with torch.no_grad():
-    for i in tqdm(range(num_samples // batch_size)):
-        labels = variance * torch.randn((batch_size, 1), device="cuda") + mean
-        noise = torch.randn((batch_size, 1, 8, 8), device="cuda") #standard normal, probably fine
-        labels_list.extend(labels.cpu().detach().numpy())
-        proj = vae.FOM_Conditioner_latent(labels).view(-1, 1, 8, 8)
-        cat = torch.cat([noise, proj], dim = 1)
-        images = vae.decode(cat)
-        images = expand_output(images, batch_size)
-        if i == 0:
-            save_image_grid(images, "cVAE_Sample.png")
-        FOMs = FOM_calculator(
-            torch.permute(images.repeat(1, 3, 1, 1), (0, 2, 3, 1)).cpu().numpy()
-        )
+    i = 0
+    loop = True
+    while loop:
+        for batch in train_loader:
+            if (i >= num_samples // batch_size) :
+                loop = False
+                break
+            i += 1
+            images, FOMs = batch
+            FOMs = FOMs.unsqueeze(1)
+            images = images.cuda().float()
+            FOMs = FOMs.cuda().float()
 
-        FOMs_list.extend(FOMs.numpy().flatten().tolist())
+            labels = variance * torch.randn((batch_size, 1), device="cuda") + mean
+
+            labels1 = vae.FOM_Conditioner(labels).view(-1, 1, 32, 32)
+            labels2 = vae.FOM_Conditioner_latent(labels).view(-1, 1, 8, 8)
+
+            FOMs_projection = vae.FOM_Conditioner(FOMs).view(-1, 1, 32, 32)
+
+            mu, sigma = vae.encode(torch.cat([images, labels1], dim=1)) #experiment with labels or FOMs
+
+            epsilon = torch.randn_like(sigma)
+            z_reparameterized = mu + torch.multiply(sigma, epsilon)
+
+            labels_list.extend(labels.cpu().detach().numpy())
+
+            cat = torch.cat([z_reparameterized, labels2], dim = 1)
+            images = vae.decode(cat)
+            images = expand_output(images, batch_size)
+            if i == 1:
+                save_image_grid(images, "cVAE_Sample.png")
+            FOMs = FOM_calculator(
+                torch.permute(images.repeat(1, 3, 1, 1), (0, 2, 3, 1)).cpu().numpy()
+            )
+
+            FOMs_list.extend(FOMs.numpy().flatten().tolist())
 
 plt.figure()
 plt.scatter(labels_list, FOMs_list)
