@@ -1,4 +1,1 @@
-Idea: have the sampling scheme similar to WGAN scheme.
-Have new FOM samples each set of 100 samples, and keep them constant
-throughout generation process. Mean of 1.8 and variance of 0.1.
-Variable conditioning false.
+Same as 6,7 but changed saving so it works correct. mean 1.8, variance 0.1

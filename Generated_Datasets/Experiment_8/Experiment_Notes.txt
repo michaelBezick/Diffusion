@@ -1,0 +1,1 @@
+Same as 6,7 but changed saving so it works correct. mean 1.8, variance 0.1
