@@ -31,14 +31,19 @@ original_dataset = (original_dataset - torch.min(original_dataset)) / (torch.max
 generated_dataset = generated_dataset * 255
 original_dataset = original_dataset * 255
 
-generated_dataset = generated_dataset.to(torch.uint8)
 generated_dataset = expand_output(generated_dataset, 20_000)
+generated_dataset = generated_dataset.to(torch.uint8)
 original_dataset = original_dataset.to(torch.uint8)
 
 generated_dataset = generated_dataset.expand(20_000, 3, 64, 64)
 original_dataset = original_dataset.unsqueeze(1).expand(12_000, 3, 64, 64)
 
-kid = KernelInceptionDistance(subsets=20, subset_size=1000)
+generated_dataset = generated_dataset[0:2000, :, :, :]
+original_dataset = original_dataset[0:2000, :, :, :]
+print(generated_dataset.dtype)
+print(original_dataset.dtype)
+
+kid = KernelInceptionDistance(feature=64, subsets=20, subset_size=100)
 
 kid.update(original_dataset, real=True)
 kid.update(generated_dataset, real=False)
