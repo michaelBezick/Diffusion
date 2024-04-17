@@ -5,10 +5,11 @@ import numpy as np
 from LDM_Classes import LDM, VAE, AttentionUNet
 
 experiment_name = "Experiment_-1"
-experiment_notes = "Same as 6 but mean 1.7 variance 0.1"
+experiment_notes = "Same as 6,7 but changed saving so it works correct. mean 1.8, variance 0.1"
 num_samples = 20_000
+num_samples = 200
 batch_size = 200
-mean = 1.7
+mean = 1.8
 variance = 0.1
 variable_conditioning = False
 
