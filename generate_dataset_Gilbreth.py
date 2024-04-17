@@ -4,12 +4,12 @@ import numpy as np
 
 from LDM_Classes import LDM, VAE, AttentionUNet
 
-experiment_name = "Experiment_6"
-experiment_notes = "Idea: have the sampling scheme similar to WGAN scheme.\nHave new FOM samples each set of 100 samples, and keep them constant\nthroughout generation process. Mean of 1.8 and variance of 0.1.\nVariable conditioning false."
+experiment_name = "Experiment_7"
+experiment_notes = "Same as 6 but mean 1.7 variance 0.1"
 num_samples = 20_000
-batch_size = 100
-mean = 1.8
-variance = 0.2
+batch_size = 200
+mean = 1.7
+variance = 0.1
 variable_conditioning = False
 
 checkpoint_path_LDM = "./logs/LDM/version_2/checkpoints/epoch=6999-step=210000.ckpt"

@@ -10,7 +10,7 @@ from tqdm import tqdm
 from LDM_Classes import LDM, VAE, AttentionUNet, expand_output, load_FOM_model
 
 checkpoint_path_LDM = "./logs/LDM/version_2/checkpoints/epoch=6999-step=210000.ckpt"
-experiment_name = "Experiment_6"
+experiment_name = "Experiment_7"
 
 num_samples = 20_000
 batch_size = 100
