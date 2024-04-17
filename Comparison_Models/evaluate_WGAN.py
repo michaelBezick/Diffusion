@@ -84,6 +84,7 @@ with torch.no_grad():
 dataset = torch.from_numpy(np.array(dataset))
 dataset = (dataset - torch.min(dataset)) / (torch.max(dataset) - torch.min(dataset))
 dataset = dataset.to(torch.half)
+dataset = dataset.numpy()
 
 np.save("WGAN_dataset.npy", dataset)
 

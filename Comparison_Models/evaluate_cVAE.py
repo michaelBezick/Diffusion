@@ -109,11 +109,13 @@ FOMs_list = []
 
 vae = vae.cuda()
 
+dataset = []
 with torch.no_grad():
     i = 0
     loop = True
     while loop:
         for batch in train_loader:
+            print(i)
             if (i >= num_samples // batch_size) :
                 loop = False
                 break
@@ -139,6 +141,7 @@ with torch.no_grad():
 
             cat = torch.cat([z_reparameterized, labels2], dim = 1)
             images = vae.decode(cat)
+            dataset.extend(images.detach().cpu().numpy())
             images = expand_output(images, batch_size)
             if i == 1:
                 save_image_grid(images, "cVAE_Sample.png")
@@ -147,6 +150,11 @@ with torch.no_grad():
             )
 
             FOMs_list.extend(FOMs.numpy().flatten().tolist())
+dataset = torch.from_numpy(np.array(dataset))
+dataset = (dataset - torch.min(dataset)) / (torch.max(dataset) - torch.min(dataset))
+dataset = dataset.to(torch.half)
+dataset = dataset.numpy()
+np.save("cVAE_dataset.npy", dataset)
 
 plt.figure()
 plt.scatter(labels_list, FOMs_list)
