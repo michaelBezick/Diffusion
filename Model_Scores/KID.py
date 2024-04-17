@@ -38,7 +38,7 @@ original_dataset = original_dataset.to(torch.uint8)
 generated_dataset = generated_dataset.expand(20_000, 3, 64, 64)
 original_dataset = original_dataset.unsqueeze(1).expand(12_000, 3, 64, 64)
 
-kid = KernelInceptionDistance(subsets=200, subset_size=100)
+kid = KernelInceptionDistance(subsets=20, subset_size=1000)
 
 kid.update(original_dataset, real=True)
 kid.update(generated_dataset, real=False)
