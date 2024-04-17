@@ -23,7 +23,7 @@ normalizedDataset = np.multiply(normalizedDataset, 2) - 1
 normalizedDataset = normalizedDataset.astype(np.float32)
 
 original_dataset = torch.from_numpy(normalizedDataset)
-generated_dataset = torch.load("../Generated_Datasets/Experiment_8/generated_dataset.pt")
+generated_dataset = torch.load("../Comparison_Models/WGAN_dataset.npy")
 
 generated_dataset = (generated_dataset - torch.min(generated_dataset)) / (torch.max(generated_dataset) - torch.min(generated_dataset))
 original_dataset = (original_dataset - torch.min(original_dataset)) / (torch.max(original_dataset) - torch.min(original_dataset))
@@ -39,5 +39,5 @@ original_dataset = original_dataset.to(torch.half)
 generated_dataset = generated_dataset.numpy()
 original_dataset = original_dataset.numpy()
 
-np.save("generated_dataset_LDM.npy", generated_dataset)
+np.save("generated_dataset_WGAN.npy", generated_dataset)
 # np.save("original_dataset.npy", original_dataset)
