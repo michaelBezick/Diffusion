@@ -10,11 +10,11 @@ from tqdm import tqdm
 from LDM_Classes import LDM, VAE, AttentionUNet, expand_output, load_FOM_model
 
 checkpoint_path_LDM = "./logs/LDM/version_2/checkpoints/epoch=6999-step=210000.ckpt"
-experiment_name = "Experiment_7"
+experiment_name = "Experiment_8"
 
 num_samples = 20_000
-batch_size = 100
-plot = False
+batch_size = 1000
+plot = True
 mean = 1.8
 variance = 0.2
 ############################################################
@@ -47,8 +47,6 @@ if plot:
         "./Generated_Datasets/" + experiment_name + "/FOM_values.pt"
     )
     print(FOM_conditioning_values.size())
-    print(FOM_conditioning_values[:, :, 0:10, 0:10])
-    exit()
 dataset = expand_output(dataset, num_samples)
 
 FOM_calculator = load_FOM_model("Files/VGGnet.json", "Files/VGGnet_weights.h5")
