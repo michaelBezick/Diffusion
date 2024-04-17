@@ -4,7 +4,7 @@ import numpy as np
 
 from LDM_Classes import LDM, VAE, AttentionUNet
 
-experiment_name = "Experiment_7"
+experiment_name = "Experiment_-1"
 experiment_notes = "Same as 6 but mean 1.7 variance 0.1"
 num_samples = 20_000
 batch_size = 200
@@ -49,7 +49,7 @@ else:
     samples = ldm.create_dataset_variable_FOM(num_samples=num_samples, start_mean=1.4, end_mean=1.8, variance=0.1)
 
 dataset = torch.from_numpy(np.array(dataset))
-FOM_values_list = torch.from_numpy(np.array(dataset))
+FOM_values_list = torch.from_numpy(np.array(FOM_values_list))
 
 dir_path = "./Generated_Datasets/" + experiment_name + "/"
 

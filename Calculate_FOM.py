@@ -14,7 +14,7 @@ experiment_name = "Experiment_7"
 
 num_samples = 20_000
 batch_size = 100
-plot = True
+plot = False
 mean = 1.8
 variance = 0.2
 ############################################################
@@ -46,6 +46,9 @@ if plot:
     FOM_conditioning_values = torch.load(
         "./Generated_Datasets/" + experiment_name + "/FOM_values.pt"
     )
+    print(FOM_conditioning_values.size())
+    print(FOM_conditioning_values[:, :, 0:10, 0:10])
+    exit()
 dataset = expand_output(dataset, num_samples)
 
 FOM_calculator = load_FOM_model("Files/VGGnet.json", "Files/VGGnet_weights.h5")
@@ -90,10 +93,11 @@ with open(
 # plotting correlation
 
 if plot:
-    num_duplicates = num_samples // batch_size
-    FOM_conditioning_values = FOM_conditioning_values.unsqueeze(0)
-    FOM_conditioning_values = FOM_conditioning_values.expand(num_duplicates, -1)
-    FOM_conditioning_values = FOM_conditioning_values.reshape(-1)
+    # num_duplicates = num_samples // batch_size
+    # FOM_conditioning_values = FOM_conditioning_values.unsqueeze(0)
+    # FOM_conditioning_values = FOM_conditioning_values.expand(num_duplicates, -1)
+    # FOM_conditioning_values = FOM_conditioning_values.reshape(-1)
+    print(FOM_conditioning_values.size())
     plt.figure()
     plt.scatter(FOM_conditioning_values.cpu().numpy(), FOM_measurements)
     plt.title("Conditioning FOM Values versus Generated FOM Values")
