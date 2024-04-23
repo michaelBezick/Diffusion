@@ -11,3 +11,10 @@ Order of priority:
 
 
 TODO: run the new sampling scheme with new model
+
+TODO: fix sinusoidal positional embedding to fix scale
+
+  sinusoidal position embedding parameters:
+  encoding size: 100
+  subtract by min of dataset (0.713) then multiply by 2000
+  positions = (dataset[:index] - 0.713) * 2000

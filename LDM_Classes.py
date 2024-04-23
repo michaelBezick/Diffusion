@@ -676,12 +676,12 @@ class AttentionUNet(nn.Module):
         in_channels=1,
         out_channels=1,
         UNet_channel=8,
-        timeEmbeddingLength=16,
+        timeEmbeddingLength=100,
         batch_size=100,
         latent_height=8,
         latent_width=8,
         num_steps=1000,
-        FOM_condition_vector_size=16,
+        FOM_condition_vector_size=100,
         kernel_size=(3, 3),
         conditioning_channel_size=2,
     ):
@@ -822,6 +822,7 @@ class AttentionUNet(nn.Module):
         )
 
     def forward(self, x, FOM_values, timeStep):
+        FOM_values = (FOM_values - 0.713) * 2000
 
         # creation of timestep embeddings
         embeddings = self.embedder(timeStep)

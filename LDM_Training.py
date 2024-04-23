@@ -22,11 +22,11 @@ lr_DDPM = 1e-3
 perceptual_loss_scale = 1
 kl_divergence_scale = 0.3
 
-resume_from_checkpoint = True
+resume_from_checkpoint = False
 
 checkpoint_path_VAE = "./logs/VAE/version_0/checkpoints/epoch=1115-step=33480.ckpt"
 
-checkpoint_path_LDM = "./logs/LDM/version_1/checkpoints/epoch=3552-step=106590.ckpt"
+# checkpoint_path_LDM = "./logs/LDM/version_1/checkpoints/epoch=3552-step=106590.ckpt"
 
 ###########################################################################################
 
@@ -42,7 +42,16 @@ vae = VAE(
     perceptual_loss_scale=perceptual_loss_scale,
     kl_divergence_scale=kl_divergence_scale,
 )
-vae = vae.load_from_checkpoint(
+# vae = vae.load_from_checkpoint(
+#     checkpoint_path=checkpoint_path_VAE,
+#     in_channels=in_channels,
+#     h_dim=128,
+#     lr=lr_VAE,
+#     batch_size=batch_size,
+#     perceptual_loss_scale=perceptual_loss_scale,
+#     kl_divergence_scale=kl_divergence_scale,
+# )
+vae = VAE.load_from_checkpoint(
     checkpoint_path=checkpoint_path_VAE,
     in_channels=in_channels,
     h_dim=128,
@@ -57,12 +66,12 @@ DDPM = AttentionUNet(
     in_channels=in_channels,
     out_channels=out_channels,
     UNet_channel=64,
-    timeEmbeddingLength=16,
+    timeEmbeddingLength=100,
     batch_size=batch_size,
     latent_height=8,
     latent_width=8,
     num_steps=1000,
-    FOM_condition_vector_size=16,
+    FOM_condition_vector_size=100,
 )
 
 ldm = LDM(
