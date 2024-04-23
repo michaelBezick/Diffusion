@@ -9,8 +9,7 @@ from tqdm import tqdm
 
 from LDM_Classes import LDM, VAE, AttentionUNet, expand_output, load_FOM_model
 
-checkpoint_path_LDM = "./logs/LDM/version_2/checkpoints/epoch=6999-step=210000.ckpt"
-experiment_name = "Experiment_8"
+experiment_name = "Experiment_9"
 
 num_samples = 20_000
 batch_size = 1000
@@ -18,7 +17,6 @@ plot = True
 mean = 1.8
 variance = 0.2
 ############################################################
-
 
 def save_image_grid(tensor, filename, nrow=8, padding=2):
     # Make a grid from batch tensor
@@ -72,7 +70,6 @@ for batch in tqdm(train_loader):
 with open(
     "./Generated_Datasets/" + experiment_name + "/Experiment_Summary.txt", "w"
 ) as file:
-    file.write(f"Max generated: {max(FOM_measurements):2f}\n")
     file.write(f"Max generated: {max(FOM_measurements):2f}\n")
     file.write(f"Mean generated: {statistics.mean(FOM_measurements):2f}\n")
     file.write(f"Min generated: {min(FOM_measurements):2f}\n")
