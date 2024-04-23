@@ -1,0 +1,1 @@
+Fixed conditioning mean 1.8, variance 0.1
