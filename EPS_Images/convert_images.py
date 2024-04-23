@@ -3,6 +3,8 @@ import os
 
 def convert_image_to_eps(image_path, output_path):
     with Image.open(image_path) as img:
+        if img.mode not in ['RGB', 'L']:
+            img = img.convert('RGB')
         img.save(output_path, format='EPS')
 
 def find_images(directory, extensions=(".png", ".jpg", ".jpeg")):
