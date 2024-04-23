@@ -26,7 +26,7 @@ resume_from_checkpoint = True
 
 checkpoint_path_VAE = "./logs/VAE/version_0/checkpoints/epoch=1115-step=33480.ckpt"
 
-checkpoint_path_LDM = "./logs/LDM/fixed_conditioning/checkpoints/epoch=3568-step=107070.ckpt"
+checkpoint_path_LDM = "./logs/LDM/version_5/checkpoints/epoch=3568-step=107070.ckpt"
 
 ###########################################################################################
 

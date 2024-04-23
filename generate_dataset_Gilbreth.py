@@ -12,7 +12,7 @@ mean = 1.8
 variance = 0.1
 variable_conditioning = False
 
-checkpoint_path_LDM = "./logs/LDM/fixed_conditioning/checkpoints/epoch=3568-step=107070.ckpt"
+checkpoint_path_LDM = "./logs/LDM/version_5/checkpoints/epoch=3568-step=107070.ckpt"
 ############################################################
 
 FOM_values = None
