@@ -4,15 +4,15 @@ import numpy as np
 
 from LDM_Classes import LDM, VAE, AttentionUNet
 
-experiment_name = "Experiment_9"
-experiment_notes = "Fixed conditioning mean 1.8, variance 0.1"
+experiment_name = "Experiment_10"
+experiment_notes = "Fixed conditioning mean 1.7, variance 0.1."
 num_samples = 20_000
 batch_size = 2000
 mean = 1.8
 variance = 0.1
 variable_conditioning = False
 
-checkpoint_path_LDM = "./logs/LDM/version_5/checkpoints/epoch=3568-step=107070.ckpt"
+checkpoint_path_LDM = "./logs/LDM/version_6/checkpoints/epoch=6989-step=209700.ckpt"
 ############################################################
 
 FOM_values = None
