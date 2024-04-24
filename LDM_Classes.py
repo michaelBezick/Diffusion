@@ -197,6 +197,7 @@ class LDM(pl.LightningModule):
             ),
             torch.eye(self.height * self.width * self.in_channels, device=self.device),
         )
+
     def create_dataset_variable_FOM(self, num_samples, start_mean, end_mean, variance):
         dataset = []
         for _ in tqdm(range(num_samples // self.batch_size)):
@@ -221,7 +222,10 @@ class LDM(pl.LightningModule):
                     scaled_t = (self.num_steps - t) / 1000
                     functional_mean = scaled_t * difference_mean + start_mean
 
-                    FOM_values = variance * torch.randn(self.batch_size, device = self.device) + functional_mean
+                    FOM_values = (
+                        variance * torch.randn(self.batch_size, device=self.device)
+                        + functional_mean
+                    )
 
                     if t > 0:
                         z = self.random_generator.sample((self.batch_size,)).view(
