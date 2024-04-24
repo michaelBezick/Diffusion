@@ -9,14 +9,16 @@ from tqdm import tqdm
 
 from LDM_Classes import LDM, VAE, AttentionUNet, expand_output, load_FOM_model
 
-experiment_name = "Experiment_9"
+experiment_name = "Experiment_11"
 
 num_samples = 20_000
 batch_size = 1000
 plot = True
-mean = 1.8
-variance = 0.2
+clamp = False
 ############################################################
+
+def clamp_output(tensor: torch.Tensor, threshold):
+    return torch.where(tensor > threshold, torch.tensor(1.0), torch.tensor(0.0))
 
 def save_image_grid(tensor, filename, nrow=8, padding=2):
     # Make a grid from batch tensor
@@ -60,6 +62,8 @@ FOM_measurements = []
 
 i = 0
 for batch in tqdm(train_loader):
+    if clamp:
+        batch = clamp_output(batch, 0.5)
     if i == 0:
         save_image_grid(batch, "Diffusion_Grid.png")
         grid = torchvision.utils.make_grid(batch)

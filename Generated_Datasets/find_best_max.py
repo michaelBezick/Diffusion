@@ -9,7 +9,7 @@ greatest_folder = ""
 
 for folder in dir_list:
     print(folder)
-    if folder == "Experiment_-1" or folder =="find_best_max.py":
+    if folder == "Experiment_-1" or folder =="find_best_max.py" or "." in folder:
         continue
 
     with open(folder + "/Experiment_Summary.txt", "r") as file:

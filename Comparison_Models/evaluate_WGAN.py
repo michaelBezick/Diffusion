@@ -8,6 +8,7 @@ from PIL import Image
 from tqdm import tqdm
 
 create_dataset = False
+clamp = False
 
 img_size = (32, 32, 1)
 batch_size = 100
@@ -15,7 +16,8 @@ generator = Generator(img_size=img_size, latent_dim=64, dim=32, batch_size=batch
 generator.load_state_dict(torch.load("./gen_mnist_model.pt"))
 generator.eval()
 
-
+def clamp_output(tensor: torch.Tensor, threshold):
+    return torch.where(tensor > threshold, torch.tensor(1.0), torch.tensor(0.0))
 
 def save_image_grid(tensor, filename, nrow=8, padding=2):
     # Make a grid from batch tensor
@@ -57,7 +59,7 @@ num_samples = 20_000
 
 plot = True
 mean = 1.8
-variance = 0.2
+variance = 0.1
 
 FOM_calculator = load_FOM_model("../Files/VGGnet.json", "../Files/VGGnet_weights.h5")
 
@@ -77,6 +79,11 @@ with torch.no_grad():
         if create_dataset:
             dataset.extend(images.detach().cpu().numpy())
         images = expand_output(images, batch_size)
+        images = images * 255
+        if clamp:
+            images = clamp_output(images, 0.5)
+            # images = images * 2 - 1
+            images = images * 255
         if i == 0:
             save_image_grid(images, "WGAN_Sample.png")
         FOMs = FOM_calculator(

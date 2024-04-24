@@ -14,13 +14,17 @@ from Models import cVAE
 NEW STRATEGY: Latent point generated through randomly choosing from dataset
 """
 
-batch_size = 100
+clamp = False
+batch_size = 1000
 lr = 1e-3
 perceptual_loss_scale = 1
 kl_divergence_scale = 0.1
 checkpoint_path = "./logs/cVAE/version_0/checkpoints/epoch=1098-step=32970.ckpt" 
 vae = cVAE.load_from_checkpoint(checkpoint_path,n_channels=1, h_dim=128, batch_size=batch_size, lr=lr, kl_divergence_scale=kl_divergence_scale, perceptual_loss_scale=perceptual_loss_scale)
 vae.eval()
+
+def clamp_output(tensor: torch.Tensor, threshold):
+    return torch.where(tensor > threshold, torch.tensor(1.0), torch.tensor(0.0))
 
 dataset = np.expand_dims(np.load("../Files/TPV_dataset.npy"), 1)
 normalizedDataset = (dataset - np.min(dataset)) / (np.max(dataset) - np.min(dataset))
@@ -143,6 +147,11 @@ with torch.no_grad():
             images = vae.decode(cat)
             dataset.extend(images.detach().cpu().numpy())
             images = expand_output(images, batch_size)
+            images = images * 255
+            if clamp:
+                images = clamp_output(images, 0.5)
+                # images = images * 2 - 1
+                images = images * 255
             if i == 1:
                 save_image_grid(images, "cVAE_Sample.png")
             FOMs = FOM_calculator(

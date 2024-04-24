@@ -1,0 +1,18 @@
+LDM:
+------------------------------
+Max generated: 455.148956
+Mean generated: 184.175402
+
+WGAN:
+------------------------------
+FOM max: 469.3551330566406
+FOM mean: 132.81446998665183
+
+cVAE:
+------------------------------
+FOM max: 423.541015625
+FOM mean: 156.50800976346284
+
+rerun with binary dataset tonight
+give yuheng updated info
+inkscape line width.

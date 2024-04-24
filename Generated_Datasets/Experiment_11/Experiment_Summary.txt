@@ -1,0 +1,7 @@
+Max generated: 2.076604
+Mean generated: 1.505754
+Min generated: 0.643582
+Max dataset: 1.825151
+Mean dataset: 1.245682
+Min dataset: 0.713072
+Percent improvement: 1.1377708962151145
