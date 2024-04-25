@@ -1,0 +1,5 @@
+Dataset FOM max: 1.4543766975402832
+Dataset FOM min: 0.25406476855278015
+Clamped: True
+Normalized: True
+Values in {0, 1}
