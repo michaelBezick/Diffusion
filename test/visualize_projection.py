@@ -1,13 +1,23 @@
 import os
 import sys
 
-import matplotlib.pyplot as plt
 import torch
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
+import numpy as np
+
 parent_dir = os.path.dirname(current_dir)
 sys.path.append(parent_dir)
 from LDM_Classes import LDM, VAE, AttentionUNet
+
+dataset = np.expand_dims(np.load("../Files/TPV_dataset.npy"), 1)
+normalizedDataset = (dataset - np.min(dataset)) / (np.max(dataset) - np.min(dataset))
+
+normalizedDataset = np.multiply(normalizedDataset, 2) - 1
+
+normalizedDataset = normalizedDataset.astype(np.float32)
+
+dataset = torch.from_numpy(normalizedDataset)
 
 
 def mean_normalize(x: torch.Tensor):

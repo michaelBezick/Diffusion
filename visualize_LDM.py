@@ -7,8 +7,6 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
 
 from LDM_Classes import LDM, VAE, AttentionUNet, LabeledDataset
-num_devices = 2
-num_nodes = 2
 num_workers = 1
 accelerator = "gpu"
 batch_size = 100
@@ -129,62 +127,68 @@ train_loader = DataLoader(
     shuffle=True,
     drop_last=True,
 )
+apple = 0
 for batch in train_loader:
-    images, FOMs = batch
-    images = images.cuda()
-    FOMs = FOMs.cuda()
+    apple += 1
+    if apple < 2:
+        continue
+    for special_t in [0, 100, 300, 500, 999]:
+        images, FOMs = batch
+        images = images.cuda()
+        FOMs = FOMs.cuda()
 
-    save_image_grid(expand_output(images[0, :, :, :].unsqueeze(0), 1).squeeze(0), "LDM_original_image.png")
+        save_image_grid(expand_output(images[0, :, :, :].unsqueeze(0), 1).squeeze(0), "LDM_original_image.png")
 
 # random timestep
-    t = torch.randint(0, ldm.num_steps - 1, (ldm.batch_size,), device="cpu")
-    t[0] = 200
+        t = torch.randint(0, ldm.num_steps - 1, (ldm.batch_size,), device="cpu")
+        t[0] = special_t
 
 # generating epsilon_0
-    epsilon_sample = ldm.random_generator.sample((ldm.batch_size,))
-    epsilon_0 = epsilon_sample.view(
-        ldm.batch_size, ldm.in_channels, ldm.height, ldm.width
-    )
+        epsilon_sample = ldm.random_generator.sample((ldm.batch_size,))
+        epsilon_0 = epsilon_sample.view(
+            ldm.batch_size, ldm.in_channels, ldm.height, ldm.width
+        )
 
-    print(epsilon_0.size())
-    print(epsilon_0[0, :, :, :].unsqueeze(0).size())
-    save_image_grid_latent(expand_output_latent(epsilon_0[0, :, :, :].unsqueeze(0), 1).squeeze(0), "original_noise.png")
+        print(epsilon_0.size())
+        print(epsilon_0[0, :, :, :].unsqueeze(0).size())
+        save_image_grid_latent(expand_output_latent(epsilon_0[0, :, :, :].unsqueeze(0), 1).squeeze(0), "original_noise.png")
 
 # broadcasting alpha_bar_vector
-    alpha_bar_vector = ldm.alpha_bar_schedule[t].float()
-    alpha_bar_vector = alpha_bar_vector.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)
-    alpha_bar_vector = alpha_bar_vector.expand(
-        -1, ldm.in_channels, ldm.height, ldm.width
-    ).cuda()
+        alpha_bar_vector = ldm.alpha_bar_schedule[t].float()
+        alpha_bar_vector = alpha_bar_vector.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)
+        alpha_bar_vector = alpha_bar_vector.expand(
+            -1, ldm.in_channels, ldm.height, ldm.width
+        ).cuda()
 
 # encoding to latent space
-    x = images
-    with torch.no_grad():
-        mu, sigma = ldm.VAE.encode(x)
+        x = images
+        with torch.no_grad():
+            mu, sigma = ldm.VAE.encode(x)
 
-    z_reparameterized = mu + torch.multiply(
-        sigma, torch.randn_like(sigma, device=ldm.device)
-    )
+        z_reparameterized = mu + torch.multiply(
+            sigma, torch.randn_like(sigma, device=ldm.device)
+        )
 
-    save_image_grid_latent(expand_output_latent(z_reparameterized[0, :, :, :].unsqueeze(0), 1).squeeze(0), "LDM_x0.png")
+        save_image_grid_latent(expand_output_latent(z_reparameterized[0, :, :, :].unsqueeze(0), 1).squeeze(0), "LDM_x0.png")
 
 
 ### Creation of x_t, algorithm 1 of Ho et al.###
-    mu = torch.mul(torch.sqrt(alpha_bar_vector), z_reparameterized)
-    epsilon_0 = epsilon_0.cuda()
-    variance = torch.mul(
-        torch.sqrt(torch.ones_like(alpha_bar_vector, device="cuda") - alpha_bar_vector), epsilon_0
-    )
-    x_t = torch.add(mu, variance)
+        mu = torch.mul(torch.sqrt(alpha_bar_vector), z_reparameterized)
+        epsilon_0 = epsilon_0.cuda()
+        variance = torch.mul(
+            torch.sqrt(torch.ones_like(alpha_bar_vector, device="cuda") - alpha_bar_vector), epsilon_0
+        )
+        x_t = torch.add(mu, variance)
 
-    save_image_grid_latent(expand_output_latent(x_t[0, :, :, :].unsqueeze(0), 1).squeeze(0), "LDM_xt.png")
+        save_image_grid_latent(expand_output_latent(x_t[0, :, :, :].unsqueeze(0), 1).squeeze(0), f"LDM_x{special_t}.png")
 
 # experiment with this
-    tNotNormalized = t.float().cuda()
-    FOMs = FOMs.float().cuda()
-    x_t = x_t.cuda()
+        tNotNormalized = t.float().cuda()
+        FOMs = FOMs.float().cuda()
+        x_t = x_t.cuda()
 
 # predicted true epsilon in latent space
-    epsilon_theta_latent = ldm.DDPM.forward(x_t, FOMs, tNotNormalized)
-    save_image_grid_latent(expand_output_latent(epsilon_theta_latent[0, :, :, :].unsqueeze(0), 1).squeeze(0), "Predicted_noise.png")
+        epsilon_theta_latent = ldm.DDPM.forward(x_t, FOMs, tNotNormalized)
+        # save_image_grid_latent(expand_output_latent(epsilon_theta_latent[0, :, :, :].unsqueeze(0), 1).squeeze(0), "Predicted_noise.png")
+
     exit()

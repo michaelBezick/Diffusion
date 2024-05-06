@@ -3,6 +3,8 @@ from tqdm import tqdm
 import tensorflow as tf
 from torch.utils.data import DataLoader
 
+def clamp_output(tensor: torch.Tensor, threshold):
+    return torch.where(tensor > threshold, torch.tensor(1.0), torch.tensor(0.0))
 
 def expand_output(tensor: torch.Tensor, num_samples):
     x = torch.zeros([num_samples, 1, 64, 64])
@@ -38,12 +40,26 @@ train_loader = DataLoader(
 
 FOM_calculator = load_FOM_model("../Files/VGGnet.json", "../Files/VGGnet_weights.h5")
 FOM_measurements = []
+best_images_tuple_list = []
+best_images_tuple_list.append((-100, 1))
+best_images_tuple_list.append((-100, 1))
+best_images_tuple_list.append((-100, 1))
 
 for batch in tqdm(train_loader):
     FOM = FOM_calculator(torch.permute(batch.repeat(1, 3, 1, 1), (0, 2, 3, 1)).numpy())
     FOM_measurements.extend(FOM.numpy().flatten().tolist())
+    for index, FOM_item in enumerate(FOM.numpy().flatten().tolist()):
+        for i in range(len(best_images_tuple_list)):
+            compare = best_images_tuple_list[i][0]
+            if FOM_item > compare:
+                best_images_tuple_list[i] = (FOM_item, batch[index, :, :, :])
+                break
 
-best_index = FOM_measurements.index(max(FOM_measurements))
+best_images = torch.zeros(3, 1, 64, 64)
+print(best_images_tuple_list)
+for i in range(3):
+    best_images[i, :, :, :] = best_images_tuple_list.pop()[1]
 
-best_image = dataset[best_index, :, :, :]
-torch.save(best_image, "best_topology.pt")
+best_images = clamp_output(best_images, 0.5)
+print(best_images)
+torch.save(best_images, "best_topologies.pt")
