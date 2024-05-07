@@ -248,6 +248,7 @@ for epoch in range(opt.n_epochs):
             if labels[jj] == 5:
                 zz1[jj,:]=[0.3,0.05]
                 pass
+
         # Sample noise and labels as generator input
         labelVect = Variable(torch.Tensor(zz1))       
         z = Variable(torch.FloatTensor(np.random.normal(0, 1, (imgs.shape[0], opt.latent_dim))))
