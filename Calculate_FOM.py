@@ -20,6 +20,9 @@ clamp = False
 def clamp_output(tensor: torch.Tensor, threshold):
     return torch.where(tensor > threshold, torch.tensor(1.0), torch.tensor(0.0))
 
+def mean_normalize(tensor: torch.Tensor):
+    return (tensor - tensor.min()) / (tensor.max() - tensor.min())
+
 def save_image_grid(tensor, filename, nrow=8, padding=2):
     # Make a grid from batch tensor
     grid_image = torchvision.utils.make_grid(
