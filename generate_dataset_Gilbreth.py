@@ -1,10 +1,11 @@
 import torch
 import os
 import numpy as np
+import time
 
 from LDM_Classes import LDM, VAE, AttentionUNet
 
-experiment_name = "Experiment_11"
+experiment_name = "Experiment_12"
 experiment_notes = "Fixed conditioning mean 1.8, variance 0.1."
 num_samples = 20_000
 batch_size = 5000
@@ -43,7 +44,11 @@ if variable_conditioning == False:
         FOM_values_list.extend(FOM_values.numpy())
         FOM_values = FOM_values.float()
         FOM_values = FOM_values.to("cuda")
+        initial = time.time()
         samples = ldm.create_dataset(num_samples=batch_size, FOM_values=FOM_values)
+        final = time.time()
+        print(final - initial)
+        exit()
         dataset.extend(samples)
 else:
     samples = ldm.create_dataset_variable_FOM(num_samples=num_samples, start_mean=1.4, end_mean=1.8, variance=0.1)
