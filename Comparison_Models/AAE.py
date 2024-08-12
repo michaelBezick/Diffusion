@@ -14,6 +14,7 @@ from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.functional as F 
 import torch
+import time
 
 os.makedirs('images', exist_ok=True)
 
@@ -207,6 +208,7 @@ DlossMeanFake = np.zeros(opt.n_epochs)
 GlossMean = np.zeros(opt.n_epochs)
 
 for epoch in range(opt.n_epochs):
+    time1 = time.time()
     dlossmeanTot = 0
     dlossmeanReal = 0
     dlossmeanFake = 0
@@ -285,6 +287,10 @@ for epoch in range(opt.n_epochs):
 
         d_loss.backward()
         optimizer_D.step()
+        time2 = time.time()
+        print(f"time per epoch:{time2 - time1}")
+        print(f"time per experiment {(time2 - time1) * 4000}")
+        exit()
 
         print ("[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f]" % (epoch, opt.n_epochs, i, len(dataloader),
                                                             d_loss.item(), g_loss.item()))

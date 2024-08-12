@@ -11,6 +11,7 @@ from PIL import Image
 from tqdm import tqdm
 from Models import cVAE
 import torch.nn as nn
+import time
 
 clamp = False
 batch_size = 1000
@@ -169,6 +170,7 @@ labels_list = []
 FOMs_list = []
 
 dataset = []
+time1 = time.time()
 with torch.no_grad():
     i = 0
     loop = True
@@ -224,6 +226,10 @@ with torch.no_grad():
             )
 
             FOMs_list.extend(FOMs.numpy().flatten().tolist())
+time2 = time.time()
+print(f"Experiment time: {time2 - time1}")
+print(f"Minutes: {(time2 - time1) / 60}")
+exit()
 dataset = torch.from_numpy(np.array(dataset))
 dataset = (dataset - torch.min(dataset)) / (torch.max(dataset) - torch.min(dataset))
 dataset = dataset.to(torch.half)
