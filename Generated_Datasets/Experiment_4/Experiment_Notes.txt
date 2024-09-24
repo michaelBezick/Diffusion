@@ -1,1 +1,0 @@
-Have sampling start at 1.4 mean and linearly increase to 1.8 during training. Variance held at 0.1
