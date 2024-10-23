@@ -5,7 +5,7 @@ from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
 
-from LDM_Classes import LDM, VAE, AttentionUNet, LabeledDataset, Ablation_LDM, AblationAttentionUNet
+from LDM_Ablation_Classes import VAE, LabeledDataset, Ablation_LDM, AblationAttentionUNet
 
 num_devices = 2
 num_nodes = 2
@@ -22,7 +22,7 @@ lr_DDPM = 1e-3
 perceptual_loss_scale = 1
 kl_divergence_scale = 0.3
 
-resume_from_checkpoint = True
+resume_from_checkpoint = False
 
 checkpoint_path_VAE = "../logs/VAE/version_0/checkpoints/epoch=1115-step=33480.ckpt"
 
