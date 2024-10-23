@@ -14,7 +14,7 @@ for i in range(100):
     with open(f"./Discrete/{i}.txt", "w") as file:
         file.write("64 -0.14 0.14\n")
         file.write("64 -0.14 0.14\n")
-        file.write("2 0 0.1\n")
+        file.write("2 0 0.12\n")
         for pixel in image:
             if pixel.item() == 0:
                 file.write("0\n")
@@ -35,7 +35,7 @@ for i in range(100):
     with open(f"./Continuous/{i}.txt", "w") as file:
         file.write("64 -0.14 0.14\n")
         file.write("64 -0.14 0.14\n")
-        file.write("2 0 0.1\n")
+        file.write("2 0 0.12\n")
         for pixel in image:
             if pixel.item() == 0:
                 file.write("0\n")

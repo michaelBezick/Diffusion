@@ -1,15 +1,16 @@
-import torch
+import numpy as np
+import math as m
 
-data = torch.randn((100, 1, 32, 32))
-labels = torch.randint(low=0, high=10, size=(100, 1))
+beta_start = 1e-5
+beta_stop = 0.02
 
-labels = labels.unsqueeze(2).unsqueeze(3)
-labels = labels.expand(100, 1, 32, 32)
-
-print(labels)
-print(labels.size())
-final = torch.cat((data, labels), dim=1)
-print(final)
-print(final.size())
-print(final[1, 1, :, :])
-print(final[0, 1, :, :])
+beta_schedule = np.linspace(beta_start, beta_stop, 1000)
+alpha_schedule = np.ones_like(beta_schedule) - beta_schedule
+alpha_bar = np.cumprod(alpha_schedule)
+beta_bar = np.cumprod(beta_schedule)
+print(m.sqrt(alpha_bar[0]))
+print(m.sqrt(alpha_bar[-1]))
+print(1-alpha_bar[0])
+print(1-alpha_bar[-1])
+print(beta_bar[0])
+print(beta_bar[-1])

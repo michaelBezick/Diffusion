@@ -48,6 +48,8 @@ if variable_conditioning == False:
         samples = ldm.create_dataset(num_samples=batch_size, FOM_values=FOM_values)
         final = time.time()
         print(final - initial)
+        print((final - initial) / 60)
+        print(np.shape(samples))
         exit()
         dataset.extend(samples)
 else:

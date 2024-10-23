@@ -14,7 +14,13 @@ from Models import cVAE
 NEW STRATEGY: Latent point generated through randomly choosing from dataset
 """
 
-clamp = False
+"I need to investigate what ^ means."
+
+num_samples = 20_000
+
+
+clamp = True
+RGB = False
 batch_size = 1000
 lr = 1e-3
 perceptual_loss_scale = 1
@@ -89,7 +95,6 @@ def expand_output(tensor: torch.Tensor, num_samples):
     return x
 
 
-num_samples = 20_000
 
 plot = True
 mean = 1.8
@@ -147,11 +152,10 @@ with torch.no_grad():
             images = vae.decode(cat)
             dataset.extend(images.detach().cpu().numpy())
             images = expand_output(images, batch_size)
-            images = images * 255
+            if RGB:
+                images = images * 255
             if clamp:
                 images = clamp_output(images, 0.5)
-                # images = images * 2 - 1
-                images = images * 255
             if i == 1:
                 save_image_grid(images, "cVAE_Sample.png")
             FOMs = FOM_calculator(
@@ -159,6 +163,8 @@ with torch.no_grad():
             )
 
             FOMs_list.extend(FOMs.numpy().flatten().tolist())
+
+
 dataset = torch.from_numpy(np.array(dataset))
 dataset = (dataset - torch.min(dataset)) / (torch.max(dataset) - torch.min(dataset))
 dataset = dataset.to(torch.half)

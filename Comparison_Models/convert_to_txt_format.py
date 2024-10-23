@@ -1,6 +1,6 @@
 import torch
 
-num_saved_images = 5
+num_saved_images = 100
 
 
 WGAN = torch.load("./best_topologies_WGAN_discrete_measurement.pt").flatten(start_dim=2, end_dim=3).squeeze()
@@ -15,7 +15,7 @@ for dataset, model_name in model_list:
         with open(f"./{model_name}/{i}.txt", "w") as file:
             file.write("64 -0.14 0.14\n")
             file.write("64 -0.14 0.14\n")
-            file.write("2 0 0.1\n")
+            file.write("2 0 0.12\n")
             for pixel in image:
                 if pixel.item() == 0:
                     file.write("0\n")

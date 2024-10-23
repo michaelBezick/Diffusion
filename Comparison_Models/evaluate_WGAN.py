@@ -7,8 +7,11 @@ from Models import Generator
 from PIL import Image
 from tqdm import tqdm
 
-create_dataset = False
-clamp = False
+
+num_samples = 20_000
+create_dataset = True
+clamp = True
+RGB = False
 
 img_size = (32, 32, 1)
 batch_size = 100
@@ -55,7 +58,6 @@ def expand_output(tensor: torch.Tensor, num_samples):
     return x
 
 
-num_samples = 20_000
 
 plot = True
 mean = 1.8
@@ -79,11 +81,10 @@ with torch.no_grad():
         if create_dataset:
             dataset.extend(images.detach().cpu().numpy())
         images = expand_output(images, batch_size)
-        images = images * 255
+        if RGB:
+            images = images * 255
         if clamp:
             images = clamp_output(images, 0.5)
-            # images = images * 2 - 1
-            images = images * 255
         if i == 0:
             save_image_grid(images, "WGAN_Sample.png")
         FOMs = FOM_calculator(
@@ -91,6 +92,7 @@ with torch.no_grad():
         )
 
         FOMs_list.extend(FOMs.numpy().flatten().tolist())
+
 
 if create_dataset:
     dataset = torch.from_numpy(np.array(dataset))

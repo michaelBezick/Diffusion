@@ -4,7 +4,7 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-num_images_to_save = 5
+num_images_to_save = 100
 
 
 def clamp_output(tensor: torch.Tensor, threshold):

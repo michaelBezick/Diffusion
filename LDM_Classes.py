@@ -275,6 +275,7 @@ class LDM(pl.LightningModule):
 
                 # runs diffusion process from pure noise to timestep 0
                 for t in range(self.num_steps - 1, -1, -1):
+                    print(t)
 
                     if t > 0:
                         z = self.random_generator.sample((self.batch_size,)).view(

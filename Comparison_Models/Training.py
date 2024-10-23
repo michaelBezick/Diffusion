@@ -3,6 +3,7 @@ import torchvision
 from PIL import Image
 from torch.autograd import grad as torch_grad
 from torch.utils.tensorboard import SummaryWriter
+import time
 
 class Trainer:
     def __init__(
@@ -150,8 +151,12 @@ class Trainer:
 
     def train(self, data_loader, epochs):
         for epoch in range(epochs):
+            time1 = time.time()
             print("\nEpoch {}".format(epoch + 1))
             self._train_epoch(data_loader)
+            time2 = time.time()
+            print(f"Minutes: {(time2 - time1) / 60 * 5000}")
+            exit()
 
     def save_image_grid(self, tensor, filename, nrow=8, padding=2):
         # Make a grid from batch tensor

@@ -289,7 +289,7 @@ for epoch in range(opt.n_epochs):
         optimizer_D.step()
         time2 = time.time()
         print(f"time per epoch:{time2 - time1}")
-        print(f"time per experiment {(time2 - time1) * 4000}")
+        print(f"time per experiment {(time2 - time1) * 5000 / 60}")
         exit()
 
         print ("[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f]" % (epoch, opt.n_epochs, i, len(dataloader),
