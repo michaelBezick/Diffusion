@@ -3,7 +3,8 @@
 #SBATCH --nodes=4
 #SBATCH --ntasks-per-node=4
 #SBATCH --cpus-per-task=8
-#SBATCH --gres=gpu:4
+#SBATCH --gres=gpu:3
+#SBATCH --constraint="B|D"
 #SBATCH --time=04:00:00
 cd $SLURM_SUBMIT_DIR
 module load anaconda/2020.11-py38
