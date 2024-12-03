@@ -62,6 +62,304 @@ class LabeledDataset(Dataset):
 
         return image[:, 0 : self.size, 0 : self.size], label
 
+class Ablation_LDM_Pytorch(nn.Module):
+
+    def __init__(
+        self,
+        DDPM,
+        VAE,
+        in_channels,
+        batch_size,
+        num_steps,
+        latent_height,
+        latent_width,
+        lr,
+        logger,
+        device,
+    ):
+        super().__init__()
+        self.device = device
+        self.logger = logger
+        self.lr = lr
+        self.DDPM = DDPM
+        self.VAE = VAE
+        self.batch_size = batch_size
+        self.in_channels = in_channels
+        self.latent_height = latent_height
+        self.height = latent_height
+        self.latent_width = latent_width
+        self.width = latent_width
+        self.num_steps = num_steps
+        self.random_generator = MultivariateNormal(
+            torch.zeros(latent_height * latent_width * in_channels),
+            torch.eye(latent_height * latent_width * in_channels),
+        )
+        self.beta_schedule = self.make_beta_schedule(num_steps, 1e-5, 0.02)
+        self.alpha_schedule = torch.from_numpy(
+            self.get_alpha_schedule(self.beta_schedule)
+        )
+        self.alpha_bar_schedule = self.calculate_alpha_bar(self.alpha_schedule).to(
+            self.device
+        )
+        self.alpha_schedule = self.alpha_schedule.to(self.device)
+        self.global_step = 0
+
+    def training_step(self, batch):
+        images, FOMs = batch
+
+        images = images.to(self.device)
+        FOMs = FOMs.to(self.device)
+
+        self.global_step += 1
+
+        if self.global_step % 300 == 0:
+            self.sample()
+
+        # random timestep
+        t = torch.randint(0, self.num_steps - 1, (self.batch_size,), device=self.device)
+
+        # generating epsilon_0
+        epsilon_sample = self.random_generator.sample((self.batch_size,)).to(self.device)
+        epsilon_0 = epsilon_sample.view(
+            self.batch_size, self.in_channels, self.height, self.width
+        )
+
+        # broadcasting alpha_bar_vector
+        alpha_bar_vector = self.alpha_bar_schedule[t].float()
+        alpha_bar_vector = alpha_bar_vector.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)
+        alpha_bar_vector = alpha_bar_vector.expand(
+            -1, self.in_channels, self.height, self.width
+        )
+
+        # encoding to latent space
+        x = images
+        with torch.no_grad():
+            mu, sigma = self.VAE.encode(x)
+
+        z_reparameterized = mu + torch.multiply(
+            sigma, torch.randn_like(sigma, device=self.device)
+        )
+
+        # latent_encoding_sample = torch.bernoulli(
+        #     latent_encoding_logits
+        # )  # I don't think I need a gradient here
+        """
+        Not doing VAE anymore, just VAE
+        """
+        # epsilon = torch.randn_like(sigma)
+        # z_reparameterized = mu + torch.multiply(sigma, epsilon)
+
+        if self.global_step % 300 == 0:
+            latent_grid = torchvision.utils.make_grid(z_reparameterized)
+            self.logger.add_image(
+                "True latent grid", latent_grid, self.global_step
+            )
+
+        ### Creation of x_t, algorithm 1 of Ho et al.###
+        mu = torch.mul(torch.sqrt(alpha_bar_vector), z_reparameterized)
+        variance = torch.mul(
+            torch.sqrt(torch.ones_like(alpha_bar_vector) - alpha_bar_vector), epsilon_0
+        )
+        x_t = torch.add(mu, variance)
+
+        # experiment with this
+        tNotNormalized = t.float()
+        FOMs = FOMs.float()
+
+        # predicted true epsilon in latent space
+        epsilon_theta_latent = self.DDPM.forward(x_t, FOMs, tNotNormalized)
+
+        # calculating loss
+        loss = F.smooth_l1_loss(epsilon_0, epsilon_theta_latent)
+        self.logger.add_scalar("train_loss", loss)
+
+        return loss
+
+    def configure_optimizers(self):
+        optimizer = optim.Adam(self.parameters(), lr=self.lr)
+        return optimizer
+
+    def make_beta_schedule(self, num_steps, beta_1, beta_T):
+        return np.linspace(beta_1, beta_T, num=num_steps)
+
+    def get_alpha_schedule(self, beta_schedule):
+        return np.ones_like(beta_schedule) - beta_schedule
+
+    def calculate_alpha_bar(self, alpha_schedule):
+        return np.cumprod(alpha_schedule)
+
+    def on_train_start(self):
+        self.alpha_schedule = self.alpha_schedule.to(self.device)
+        self.alpha_bar_schedule = self.alpha_bar_schedule.to(self.device)
+        self.random_generator = MultivariateNormal(
+            torch.zeros(
+                self.height * self.width * self.in_channels, device=self.device
+            ),
+            torch.eye(self.height * self.width * self.in_channels, device=self.device),
+        )
+
+    def create_dataset_variable_FOM(self, num_samples, start_mean, end_mean, variance):
+        dataset = []
+        for _ in tqdm(range(num_samples // self.batch_size)):
+            with torch.no_grad():
+                x_T = self.random_generator.sample((self.batch_size,))
+                x_T = x_T.view(
+                    self.batch_size, self.in_channels, self.height, self.width
+                )
+
+                previous_image = x_T.to(self.device)
+
+                # runs diffusion process from pure noise to timestep 0
+                """
+                T ranges from 999 to 0, so must linearly scale to start mean to end mean
+                This can be accomplished by first inverting t to (num_steps - t), then dividing by 1000 to get in range [0, 1],
+                then multiplying this scalar to the difference between start and end mean, then adding to start mean
+                """
+
+                difference_mean = end_mean - start_mean
+                for t in range(self.num_steps - 1, -1, -1):
+
+                    scaled_t = (self.num_steps - t) / 1000
+                    functional_mean = scaled_t * difference_mean + start_mean
+
+                    FOM_values = (
+                        variance * torch.randn(self.batch_size, device=self.device)
+                        + functional_mean
+                    )
+
+                    if t > 0:
+                        z = self.random_generator.sample((self.batch_size,)).view(
+                            self.batch_size, self.in_channels, self.height, self.width
+                        )
+                    elif t == 0:
+                        z = torch.zeros_like(x_T)
+
+                    timeStep = torch.tensor(t).to(self.device)
+                    timeStep = timeStep.repeat(self.batch_size)
+                    epsilon_theta = self.DDPM(previous_image, FOM_values, timeStep)
+
+                    # algorithm 2 from Ho et al., using posterior variance_t = beta_t
+                    epsilon_theta = torch.mul(
+                        torch.divide(
+                            1 - self.alpha_schedule[t],
+                            torch.sqrt(1 - self.alpha_bar_schedule[t]),
+                        ),
+                        epsilon_theta,
+                    )
+                    within_parentheses = previous_image - epsilon_theta
+                    first_term = torch.mul(
+                        torch.divide(1, torch.sqrt(self.alpha_schedule[t])),
+                        within_parentheses,
+                    )
+                    previous_image = first_term + torch.mul(
+                        torch.sqrt(1 - self.alpha_schedule[t]), z.to(self.device)
+                    )
+
+                x_0 = previous_image
+                decoded = self.VAE.decode(x_0)
+                dataset.extend(decoded.cpu().numpy())
+
+        dataset = np.array(dataset)
+        return dataset
+
+    def create_dataset(self, num_samples, FOM_values):
+        dataset = []
+        for i in tqdm(range(num_samples // self.batch_size)):
+            with torch.no_grad():
+                x_T = self.random_generator.sample((self.batch_size,))
+                x_T = x_T.view(
+                    self.batch_size, self.in_channels, self.height, self.width
+                )
+
+                previous_image = x_T.to(self.device)
+
+                # runs diffusion process from pure noise to timestep 0
+                for t in range(self.num_steps - 1, -1, -1):
+                    print(t)
+
+                    if t > 0:
+                        z = self.random_generator.sample((self.batch_size,)).view(
+                            self.batch_size, self.in_channels, self.height, self.width
+                        )
+                    elif t == 0:
+                        z = torch.zeros_like(x_T)
+
+                    timeStep = torch.tensor(t).to(self.device)
+                    timeStep = timeStep.repeat(self.batch_size)
+                    epsilon_theta = self.DDPM(previous_image, FOM_values, timeStep)
+
+                    # algorithm 2 from Ho et al., using posterior variance_t = beta_t
+                    epsilon_theta = torch.mul(
+                        torch.divide(
+                            1 - self.alpha_schedule[t],
+                            torch.sqrt(1 - self.alpha_bar_schedule[t]),
+                        ),
+                        epsilon_theta,
+                    )
+                    within_parentheses = previous_image - epsilon_theta
+                    first_term = torch.mul(
+                        torch.divide(1, torch.sqrt(self.alpha_schedule[t])),
+                        within_parentheses,
+                    )
+                    previous_image = first_term + torch.mul(
+                        torch.sqrt(1 - self.alpha_schedule[t]), z.to(self.device)
+                    )
+
+                x_0 = previous_image
+                decoded = self.VAE.decode(x_0)
+                dataset.extend(decoded.cpu().numpy())
+
+        dataset = np.array(dataset)
+        return dataset
+
+    def sample(self):
+        with torch.no_grad():
+            x_T = self.random_generator.sample((self.batch_size,)).to(self.device)
+            x_T = x_T.view(self.batch_size, self.in_channels, self.height, self.width)
+            FOMs = torch.rand(self.batch_size, device=self.device) * 1.8
+
+            previous_image = x_T
+
+            # runs diffusion process from pure noise to timestep 0
+            for t in range(self.num_steps - 1, -1, -1):
+                z = None
+                if t > 0:
+                    z = self.random_generator.sample((self.batch_size,)).view(
+                        self.batch_size, self.in_channels, self.height, self.width
+                    ).to(self.device)
+                elif t == 0:
+                    z = torch.zeros_like(x_T)
+
+                timeStep = torch.tensor(t).to(self.device)
+                timeStep = timeStep.repeat(self.batch_size)
+                epsilon_theta = self.DDPM(previous_image, FOMs, timeStep)
+
+                # algorithm 2 from Ho et al., using posterior variance_t = beta_t
+                epsilon_theta = torch.mul(
+                    torch.divide(
+                        1 - self.alpha_schedule[t],
+                        torch.sqrt(1 - self.alpha_bar_schedule[t]),
+                    ),
+                    epsilon_theta,
+                )
+                within_parentheses = previous_image - epsilon_theta
+                first_term = torch.mul(
+                    torch.divide(1, torch.sqrt(self.alpha_schedule[t])),
+                    within_parentheses,
+                )
+                previous_image = first_term + torch.mul(
+                    torch.sqrt(1 - self.alpha_schedule[t]), z
+                )
+
+            x_0 = previous_image
+            x_0_grid = torchvision.utils.make_grid(x_0)
+            self.logger.add_image(
+                "Latent_Generated_Images", x_0_grid, self.global_step
+            )
+            x_0_decoded = self.VAE.decode(x_0)
+            grid = torchvision.utils.make_grid(x_0_decoded)
+            self.logger.add_image("Generated_Images", grid, self.global_step)
+
 class Ablation_LDM(pl.LightningModule):
 
     def __init__(
@@ -647,6 +945,138 @@ class LDM(pl.LightningModule):
             grid = torchvision.utils.make_grid(x_0_decoded)
             self.logger.experiment.add_image("Generated_Images", grid, self.global_step)
 
+class VAE_Pytorch(nn.Module):
+    """
+    Variational autoencoder with UNet structure.
+    """
+
+    def __init__(
+        self,
+        in_channels=1,
+        h_dim=32,
+        lr=1e-3,
+        batch_size=100,
+        perceptual_loss_scale=1.0,
+        kl_divergence_scale=1.0,
+    ):
+        super().__init__()
+
+        self.batch_size = batch_size
+
+        self.lr = lr
+
+        self.perceptual_loss_scale = perceptual_loss_scale
+        self.kl_divergence_scale = kl_divergence_scale
+
+        self.attention1E = AttnBlock(h_dim)
+        self.attention2E = AttnBlock(h_dim)
+        self.resnet1E = ResnetBlockVAE(h_dim, h_dim, (3, 3), h_dim)
+        self.resnet2E = ResnetBlockVAE(h_dim, h_dim, (3, 3), h_dim)
+        self.resnet3E = ResnetBlockVAE(h_dim, h_dim, (3, 3), h_dim)
+        self.resnet4E = ResnetBlockVAE(h_dim, h_dim, (3, 3), h_dim)
+        self.resnet5E = ResnetBlockVAE(h_dim, h_dim, (3, 3), h_dim)
+        self.resnet6E = ResnetBlockVAE(h_dim, h_dim, (3, 3), h_dim)
+        self.maxPool = nn.MaxPool2d((2, 2), 2)
+
+        self.encoder = nn.Sequential(
+            nn.Conv2d(in_channels, h_dim, kernel_size=(3, 3), padding="same"),
+            nn.SiLU(),
+            self.resnet1E,
+            self.resnet2E,
+            self.maxPool,  # 16 x 16
+            self.resnet3E,
+            self.attention1E,
+            self.resnet4E,
+            self.maxPool,  # 8 x 8
+            self.resnet5E,
+            self.attention2E,
+            self.resnet6E,
+        )
+
+        self.to_mu = nn.Conv2d(h_dim, 1, (1, 1))
+        self.to_sigma = nn.Conv2d(h_dim, 1, (1, 1))
+
+        self.attention1D = AttnBlock(h_dim)
+        self.attention2D = AttnBlock(h_dim)
+        self.resnet1D = ResnetBlockVAE(h_dim, h_dim, (3, 3), h_dim)
+        self.resnet2D = ResnetBlockVAE(h_dim, h_dim, (3, 3), h_dim)
+        self.resnet3D = ResnetBlockVAE(h_dim, h_dim, (3, 3), h_dim)
+        self.resnet4D = ResnetBlockVAE(h_dim, h_dim, (3, 3), h_dim)
+        self.resnet5D = ResnetBlockVAE(h_dim, h_dim, (3, 3), h_dim)
+        self.resnet6D = ResnetBlockVAE(h_dim, h_dim, (3, 3), h_dim)
+
+        self.decoder = nn.Sequential(
+            nn.Conv2d(1, h_dim, (1, 1)),
+            self.resnet1D,
+            self.attention1D,
+            self.resnet2D,
+            nn.ConvTranspose2d(h_dim, h_dim, (2, 2), 2),  # 16 x 16
+            self.resnet3D,
+            self.attention2D,
+            self.resnet4D,
+            nn.ConvTranspose2d(h_dim, h_dim, (2, 2), 2),  # 32 x 32
+            self.resnet5D,
+            self.resnet6D,
+            nn.Conv2d(h_dim, 1, (1, 1)),
+        )
+
+        self.perceptual_loss = VGGPerceptualLoss()
+
+    def encode(self, x):
+        h = self.encoder(x)
+        mu = self.to_mu(h)
+        sigma = self.to_sigma(h)
+        return mu, sigma
+
+    def decode(self, z):
+        return self.decoder(z)
+
+    def training_step(self, batch, batch_idx):
+        images, FOMs = batch
+
+        x = images
+
+        mu, sigma = self.encode(images)
+        epsilon = torch.randn_like(sigma)
+        z_reparameterized = mu + torch.multiply(sigma, epsilon)
+
+        x_hat = self.decode(z_reparameterized)
+
+        kl_divergence = -0.5 * torch.mean(
+            1 + torch.log(sigma.pow(2)) - mu.pow(2) - sigma.pow(2)
+        )
+        perceptual_loss = self.perceptual_loss(x, x_hat)
+
+        loss = (
+            perceptual_loss * self.perceptual_loss_scale
+            + kl_divergence * self.kl_divergence_scale
+        )
+
+        self.log("Perceptual Loss", perceptual_loss)
+        self.log("kl_divergence", kl_divergence)
+        self.log("Total loss", loss)
+
+        # logging generated images
+        sample_imgs_generated = x_hat[:30]
+        sample_imgs_original = x[:30]
+        gridGenerated = torchvision.utils.make_grid(sample_imgs_generated)
+        gridOriginal = torchvision.utils.make_grid(sample_imgs_original)
+
+        """Tensorboard logging"""
+
+        if self.global_step % 1000 == 0:
+            self.logger.experiment.add_image(
+                "Generated_images", gridGenerated, self.global_step
+            )
+            self.logger.experiment.add_image(
+                "Original_images", gridOriginal, self.global_step
+            )
+
+        return loss
+
+    def configure_optimizers(self):
+        optimizer = optim.Adam(self.parameters(), lr=self.lr)
+        return optimizer
 
 class VAE(pl.LightningModule):
     """

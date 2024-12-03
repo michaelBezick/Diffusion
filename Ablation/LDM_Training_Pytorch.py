@@ -1,11 +1,21 @@
+import os
+
 import numpy as np
 import pytorch_lightning as pl
 import torch
-from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
-from pytorch_lightning.loggers import TensorBoardLogger
+import torch.multiprocessing as mp
+from torch.distributed import destroy_process_group, init_process_group
+from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader
+from torch.utils.data.distributed import DistributedSampler
+from torch.utils.tensorboard import SummaryWriter
 
-from LDM_Ablation_Classes import VAE, LabeledDataset, Ablation_LDM, AblationAttentionUNet
+from LDM_Ablation_Classes import (
+    VAE,
+    Ablation_LDM_Pytorch,
+    AblationAttentionUNet,
+    LabeledDataset,
+)
 
 num_devices = 1
 num_nodes = 1
@@ -27,30 +37,22 @@ resume_from_checkpoint = False
 checkpoint_path_VAE = "../logs/VAE/version_0/checkpoints/epoch=1115-step=33480.ckpt"
 
 checkpoint_path_LDM = ""
+device = "cuda"
 
 ###########################################################################################
 
-checkpoint_callback = ModelCheckpoint(filename="good", every_n_train_steps=300)
+
+def ddp_setup(rank, world_size):
+
+    os.environ["MASTER_ADDR"] = "localhost"
+    os.environ["MASTER_PORT"] = "12355"
+    init_process_group(backend="nccl", rank=rank, world_size=world_size)
+
+
+# checkpoint_callback = ModelCheckpoint(filename="good", every_n_train_steps=300)
 
 torch.set_float32_matmul_precision("high")
 
-vae = VAE(
-    in_channels=in_channels,
-    h_dim=128,
-    lr=lr_VAE,
-    batch_size=batch_size,
-    perceptual_loss_scale=perceptual_loss_scale,
-    kl_divergence_scale=kl_divergence_scale,
-)
-# vae = vae.load_from_checkpoint(
-#     checkpoint_path=checkpoint_path_VAE,
-#     in_channels=in_channels,
-#     h_dim=128,
-#     lr=lr_VAE,
-#     batch_size=batch_size,
-#     perceptual_loss_scale=perceptual_loss_scale,
-#     kl_divergence_scale=kl_divergence_scale,
-# )
 vae = VAE.load_from_checkpoint(
     checkpoint_path=checkpoint_path_VAE,
     in_channels=in_channels,
@@ -60,6 +62,7 @@ vae = VAE.load_from_checkpoint(
     perceptual_loss_scale=perceptual_loss_scale,
     kl_divergence_scale=kl_divergence_scale,
 )
+vae = vae.to(device)
 vae.eval()
 
 DDPM = AblationAttentionUNet(
@@ -74,7 +77,10 @@ DDPM = AblationAttentionUNet(
     FOM_condition_vector_size=100,
 )
 
-ldm = Ablation_LDM(
+# logger = TensorBoardLogger(save_dir="logs/", name="LDM")
+logger = SummaryWriter(log_dir="runs/")
+
+ldm = Ablation_LDM_Pytorch(
     DDPM,
     vae,
     in_channels=in_channels,
@@ -83,12 +89,21 @@ ldm = Ablation_LDM(
     latent_height=8,
     latent_width=8,
     lr=lr_DDPM,
+    logger=logger,
+    device=device,
 )
+
+gpu_ids = ["gpu:0"]
+
+
+ldm = ldm.to(device)
+
 
 def clamp_output(tensor: torch.Tensor, threshold):
     return torch.where(tensor > threshold, torch.tensor(1.0), torch.tensor(0.0))
 
-dataset = np.expand_dims(np.load("./Files/TPV_dataset.npy"), 1)
+
+dataset = np.expand_dims(np.load("../Files/TPV_dataset.npy"), 1)
 normalizedDataset = (dataset - np.min(dataset)) / (np.max(dataset) - np.min(dataset))
 
 normalizedDataset = normalizedDataset.astype(np.float32)
@@ -97,36 +112,92 @@ dataset = torch.from_numpy(normalizedDataset)
 
 dataset = clamp_output(dataset, 0.5)
 
-labels = torch.load("./Files/FOM_labels_new.pt")
+labels = torch.load("../Files/FOM_labels_new.pt")
 
 labeled_dataset = LabeledDataset(dataset, labels)
 
 
 # defining training classes
-train_loader = DataLoader(
-    labeled_dataset,
-    num_workers=num_workers,
-    batch_size=batch_size,
-    shuffle=True,
-    drop_last=True,
-)
 
-logger = TensorBoardLogger(save_dir="logs/", name="LDM")
 
-lr_monitor = LearningRateMonitor(logging_interval="step")
-trainer = pl.Trainer(
-    logger=logger,
-    devices=num_devices,
-    num_nodes=num_nodes,
-    accelerator="gpu",
-    log_every_n_steps=2,
-    max_epochs=epochs,
-    strategy="ddp_find_unused_parameters_true",
-)
+class Trainer:
+    def __init__(
+        self,
+        model: torch.nn.Module,
+        train_loader: DataLoader,
+        optimizer: torch.optim.Optimizer,
+        gpu_id: int,
+        save_every: int,
+        max_epochs: int,
+    ):
+        self.local_rank = int(os.environ["LOCAL_RANK"])
+        self.global_rank = int(os.environ["RANK"])
+        self.model = model.to(self.local_rank)
+        self.train_loader = train_loader
+        self.optimizer = optimizer
+        self.save_every = save_every
+        self.ldm = DDP(model, device_ids=[self.local_rank])
+        self.max_epochs = max_epochs
 
-if resume_from_checkpoint:
-    trainer.fit(
-        model=ldm, train_dataloaders=train_loader, ckpt_path=checkpoint_path_LDM
+    def train(self):
+
+        for epoch in range(self.max_epochs):
+            if (epoch + 1) % self.save_every == 0 and self.local_rank == 0:
+                checkpoint_path = (
+                    f"epoch={epoch+1}-step={epoch*len(self.train_loader)}.ckpt"
+                )
+                checkpoint = {
+                    "state_dict": self.ldm.module.state_dict(),
+                    "optimizer_states": self.optimizer.state_dict(),
+                    "epoch": epoch + 1,
+                    "global_step": epoch * len(self.train_loader),
+                }
+                torch.save(checkpoint, checkpoint_path)
+
+            for step, batch in enumerate(self.train_loader):
+
+                loss = self.ldm.module.training_step(batch)
+
+                if step % 100 == 0:
+                    print(f"GPU: {self.global_rank}\tEpoch: {epoch}\tStep: {step}\tLoss: {loss}\t")
+
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
+
+
+def main(rank: int, world_size: int, total_epochs: int, save_every: int):
+    ddp_setup(rank, world_size)
+    optimizer = torch.optim.Adam(ldm.parameters(), lr=lr_DDPM)
+    train_loader = DataLoader(
+        labeled_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        pin_memory=True,
+        drop_last=True,
+        sampler=DistributedSampler(labeled_dataset),
     )
-else:
-    trainer.fit(model=ldm, train_dataloaders=train_loader)
+
+    trainer = Trainer(
+        model=ldm,
+        train_loader=train_loader,
+        optimizer=optimizer,
+        gpu_id=rank,
+        save_every=save_every,
+        max_epochs=total_epochs,
+    )
+    trainer.train()
+    destroy_process_group()
+
+
+if __name__ == "__main__":
+    import sys
+
+    total_epochs = int(sys.argv[1])
+    save_every = int(sys.argv[2])
+    device = 0
+    world_size = torch.cuda.device_count()
+    mp.spawn(main, args=(world_size, total_epochs, save_every), nprocs=world_size)
+
+
+logger.close()
