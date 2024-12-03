@@ -1,7 +1,6 @@
 import os
 
 import numpy as np
-import pytorch_lightning as pl
 import torch
 import torch.multiprocessing as mp
 from torch.distributed import destroy_process_group, init_process_group

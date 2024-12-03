@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --job-name=ldm_ablation
-#SBATCH --nodes=4
-#SBATCH --ntasks-per-node=4
+#SBATCH --nodes=2
+#SBATCH --ntasks-per-node=2
 #SBATCH --cpus-per-task=1
-#SBATCH --gres=gpu:3
+#SBATCH --gres=gpu:2
 #SBATCH --constraint="B|D"
 #SBATCH --time=04:00:00
 cd $SLURM_SUBMIT_DIR
