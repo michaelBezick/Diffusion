@@ -166,9 +166,23 @@ class Trainer:
                 self.optimizer.step()
 
 
-def main(rank: int, world_size: int, total_epochs: int, save_every: int):
+def main(rank: int, world_size: int, total_epochs: int, save_every: int, resume: bool):
     ddp_setup(rank, world_size)
-    optimizer = torch.optim.Adam(ldm.parameters(), lr=lr_DDPM)
+
+    if resume and os.path.isfile(checkpoint_path_LDM):
+        print(f"Resuming from checkpoint: {checkpoint_path_LDM}")
+        checkpoint = torch.load(checkpoint_path_LDM, map_location=f"cuda:{rank}")
+        ldm.load_state_dict(checkpoint["state_dict"])
+        optimizer = torch.optim.Adam(ldm.parameters(), lr=lr_DDPM)
+        optimizer.load_state_dict(checkpoint["optimizer_states"])
+        start_epoch = checkpoint["epoch"]
+        print(f"Resumed from epoch {start_epoch}")
+    else:
+        print("Starting training from scratch")
+        optimizer = torch.optim.Adam(ldm.parameters(), lr=lr_DDPM)
+        start_epoch = 0
+
+
     train_loader = DataLoader(
         labeled_dataset,
         batch_size=batch_size,
@@ -195,9 +209,9 @@ if __name__ == "__main__":
 
     total_epochs = int(sys.argv[1])
     save_every = int(sys.argv[2])
+    resume_training = bool(int(sys.argv[3]))
+
     device = 0
     world_size = torch.cuda.device_count()
     mp.spawn(main, args=(world_size, total_epochs, save_every), nprocs=world_size)
-
-
-logger.close()
+    logger.close()
