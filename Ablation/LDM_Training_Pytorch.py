@@ -212,5 +212,5 @@ if __name__ == "__main__":
 
     device = 0
     world_size = torch.cuda.device_count()
-    mp.spawn(main, args=(world_size, total_epochs, save_every), nprocs=world_size)
+    mp.spawn(main, args=(world_size, total_epochs, save_every, resume_training), nprocs=world_size)
     logger.close()
