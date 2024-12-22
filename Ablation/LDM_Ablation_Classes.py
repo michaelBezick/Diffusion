@@ -1404,7 +1404,7 @@ class AblationAttentionUNet(nn.Module):
         num_steps=1000,
         FOM_condition_vector_size=100,
         kernel_size=(3, 3),
-        conditioning_channel_size=2,
+        conditioning_channel_size=1,
     ):
         super().__init__()
         self.in_channels = in_channels
@@ -1423,67 +1423,67 @@ class AblationAttentionUNet(nn.Module):
         self.embedder = SinusoidalPositionalEmbeddings(self.dim)
 
         # Encoder
-        self.layer1a = ResnetBlock(
+        self.layer1a = ResnetBlockAblation(
             in_channels + conditioning_channel_size,
             UNet_channel,
             kernel_size,
             in_channel_image=in_channels,
         )
         self.selfAttention1 = AttnBlock(UNet_channel)
-        self.layer1b = ResnetBlock(
+        self.layer1b = ResnetBlockAblation(
             UNet_channel + conditioning_channel_size,
             UNet_channel,
             kernel_size,
             in_channel_image=UNet_channel,
         )
         self.maxPool = nn.MaxPool2d((2, 2), stride=2)
-        self.layer2a = ResnetBlock(
+        self.layer2a = ResnetBlockAblation(
             UNet_channel + conditioning_channel_size,
             UNet_channel * 2,
             kernel_size,
             in_channel_image=UNet_channel,
         )
         self.selfAttention2 = AttnBlock(UNet_channel * 2)
-        self.layer2b = ResnetBlock(
+        self.layer2b = ResnetBlockAblation(
             UNet_channel * 2 + conditioning_channel_size,
             UNet_channel * 2,
             kernel_size,
             in_channel_image=UNet_channel * 2,
         )
-        self.layer3a = ResnetBlock(
+        self.layer3a = ResnetBlockAblation(
             UNet_channel * 2 + conditioning_channel_size,
             UNet_channel * 2,
             kernel_size,
             in_channel_image=UNet_channel * 2,
         )
         self.selfAttention3 = AttnBlock(UNet_channel * 2)
-        self.layer3b = ResnetBlock(
+        self.layer3b = ResnetBlockAblation(
             UNet_channel * 2 + conditioning_channel_size,
             UNet_channel * 2,
             kernel_size,
             in_channel_image=UNet_channel * 2,
         )
-        self.layer4a = ResnetBlock(
+        self.layer4a = ResnetBlockAblation(
             2 * (UNet_channel * 2) + conditioning_channel_size,
             UNet_channel * 2,
             kernel_size,
             in_channel_image=2 * (UNet_channel * 2),
         )
         self.selfAttention4 = AttnBlock(UNet_channel * 2)
-        self.layer4b = ResnetBlock(
+        self.layer4b = ResnetBlockAblation(
             UNet_channel * 2 + conditioning_channel_size,
             UNet_channel,
             kernel_size,
             in_channel_image=UNet_channel * 2,
         )
-        self.layer5a = ResnetBlock(
+        self.layer5a = ResnetBlockAblation(
             2 * (UNet_channel) + conditioning_channel_size,
             UNet_channel,
             kernel_size,
             in_channel_image=2 * (UNet_channel),
         )
         self.selfAttention5 = AttnBlock(UNet_channel)
-        self.layer5b = ResnetBlock(
+        self.layer5b = ResnetBlockAblation(
             UNet_channel + conditioning_channel_size,
             UNet_channel,
             kernel_size,
@@ -1568,19 +1568,19 @@ class AblationAttentionUNet(nn.Module):
         # FOM_embeddings5 = self.FOM_embedder5(FOM_embeddings)
 
         # 8x8
-        x1 = self.layer1a(x, embeddings1, FOM_embeddings1)
+        x1 = self.layer1a(x, embeddings1)
         x1 = self.selfAttention1(x1)
-        x1 = self.layer1b(x1, embeddings1, FOM_embeddings1)
+        x1 = self.layer1b(x1, embeddings1)
         x2 = self.maxPool(x1)
         # 4x4
-        x2 = self.layer2a(x2, embeddings2, FOM_embeddings2)
+        x2 = self.layer2a(x2, embeddings2)
         x2 = self.selfAttention2(x2)
-        x2 = self.layer2b(x2, embeddings2, FOM_embeddings2)
+        x2 = self.layer2b(x2, embeddings2)
         x3 = self.maxPool(x2)
         # MIDDLE CONNECTION - 2x2
-        x3 = self.layer3a(x3, embeddings3, FOM_embeddings3)
+        x3 = self.layer3a(x3, embeddings3)
         x3 = self.selfAttention3(x3)
-        x3 = self.layer3b(x3, embeddings3, FOM_embeddings3)
+        x3 = self.layer3b(x3, embeddings3)
         #
         x4 = F.interpolate(
             x3,
@@ -1588,9 +1588,9 @@ class AblationAttentionUNet(nn.Module):
             mode="bilinear",
             align_corners=False,
         )
-        x5 = self.layer4a(torch.cat((x2, x4), dim=1), embeddings4, FOM_embeddings4)
+        x5 = self.layer4a(torch.cat((x2, x4), dim=1), embeddings4)
         x5 = self.selfAttention4(x5)
-        x5 = self.layer4b(x5, embeddings4, FOM_embeddings4)
+        x5 = self.layer4b(x5, embeddings4)
         #
         x6 = F.interpolate(
             x5,
@@ -1598,9 +1598,9 @@ class AblationAttentionUNet(nn.Module):
             mode="bilinear",
             align_corners=False,
         )
-        x6 = self.layer5a(torch.cat((x1, x6), dim=1), embeddings5, FOM_embeddings5)
+        x6 = self.layer5a(torch.cat((x1, x6), dim=1), embeddings5)
         x6 = self.selfAttention5(x6)
-        x6 = self.layer5b(x6, embeddings5, FOM_embeddings5)
+        x6 = self.layer5b(x6, embeddings5)
 
         # final convolutional layer, kernel size (1,1)
         out = self.layer6(x6)
@@ -1817,6 +1817,32 @@ class AttentionUNet(nn.Module):
 
         return out
 
+class ResnetBlockAblation(nn.Module):
+    # Employs intra block skip connection, which needs a (1, 1) convolution to scale to out_channels
+
+    def __init__(self, in_channels, out_channels, kernel_size, in_channel_image):
+        super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.layer1 = Block(in_channels, out_channels, kernel_size)
+        self.SiLU = nn.SiLU()
+        self.layer2 = Block(out_channels, out_channels, kernel_size)
+        self.resizeInput = nn.Conv2d(in_channel_image, out_channels, (1, 1))
+        self.dropout = nn.Dropout(0.1)
+
+    def forward(self, x, time_step_embeddings):
+        xCopy = x
+
+        x = torch.cat((x, time_step_embeddings), dim=1)
+
+        x = self.layer1(x)
+        x = self.SiLU(x)
+        x = self.layer2(x)
+        xCopy = self.resizeInput(xCopy)
+        x = x + xCopy
+        x = self.SiLU(x)
+
+        return x
 
 class ResnetBlock(nn.Module):
     # Employs intra block skip connection, which needs a (1, 1) convolution to scale to out_channels
