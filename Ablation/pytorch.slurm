@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --job-name=ldm_ablation
 #SBATCH --nodes=4
-#SBATCH --ntasks=4
-#SBATCH --cpus-per-task=4
-#SBATCH --gpus-per-task=1
+#SBATCH --cpus-per-gpu=2
+#SBATCH --gpus-per-node=3
+#SBATCH --constraint="B|D"
 #SBATCH --time=04:00:00
 cd $SLURM_SUBMIT_DIR
 module load anaconda/2020.11-py38
@@ -22,11 +22,10 @@ echo Node IP: $head_node_ip
 export LOGLEVEL=INFO
 
 
-srun torchrun \
---nodes 4 \
+srun ~/.local/bin/torchrun \
+--nnodes 4 \
 --nproc_per_node 1 \
 --rdzv_id $RANDOM \
 --rdzv_backend c10d \
 --rdzv_endpoint $head_node_ip:29500 \
-
 LDM_Training_Pytorch.py 10000 50 0

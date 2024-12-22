@@ -77,7 +77,8 @@ DDPM = AblationAttentionUNet(
 )
 
 # logger = TensorBoardLogger(save_dir="logs/", name="LDM")
-logger = SummaryWriter(log_dir="runs/")
+if rank == 0:
+    logger = SummaryWriter(log_dir="runs/")
 
 ldm = Ablation_LDM_Pytorch(
     DDPM,
@@ -141,6 +142,7 @@ class Trainer:
     def train(self):
 
         for epoch in range(self.max_epochs):
+            print(f"EPOCH HELLOOOOO:{epoch}")
             if (epoch + 1) % self.save_every == 0 and self.local_rank == 0:
                 checkpoint_path = (
                     f"epoch={epoch+1}-step={epoch*len(self.train_loader)}.ckpt"

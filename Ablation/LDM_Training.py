@@ -88,7 +88,7 @@ ldm = Ablation_LDM(
 def clamp_output(tensor: torch.Tensor, threshold):
     return torch.where(tensor > threshold, torch.tensor(1.0), torch.tensor(0.0))
 
-dataset = np.expand_dims(np.load("./Files/TPV_dataset.npy"), 1)
+dataset = np.expand_dims(np.load("../Files/TPV_dataset.npy"), 1)
 normalizedDataset = (dataset - np.min(dataset)) / (np.max(dataset) - np.min(dataset))
 
 normalizedDataset = normalizedDataset.astype(np.float32)
@@ -97,7 +97,7 @@ dataset = torch.from_numpy(normalizedDataset)
 
 dataset = clamp_output(dataset, 0.5)
 
-labels = torch.load("./Files/FOM_labels_new.pt")
+labels = torch.load("../Files/FOM_labels_new.pt")
 
 labeled_dataset = LabeledDataset(dataset, labels)
 
