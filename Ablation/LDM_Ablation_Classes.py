@@ -365,7 +365,7 @@ class Ablation_LDM(pl.LightningModule):
     def __init__(
         self,
         DDPM,
-        VAE,
+        vae,
         in_channels,
         batch_size,
         num_steps,
@@ -376,7 +376,7 @@ class Ablation_LDM(pl.LightningModule):
         super().__init__()
         self.lr = lr
         self.DDPM = DDPM
-        self.VAE = VAE
+        self.vae = vae
         self.batch_size = batch_size
         self.in_channels = in_channels
         self.latent_height = latent_height
@@ -421,7 +421,7 @@ class Ablation_LDM(pl.LightningModule):
         # encoding to latent space
         x = images
         with torch.no_grad():
-            mu, sigma = self.VAE.encode(x)
+            mu, sigma = self.vae.encode(x)
 
         z_reparameterized = mu + torch.multiply(
             sigma, torch.randn_like(sigma, device=self.device)
@@ -543,7 +543,7 @@ class Ablation_LDM(pl.LightningModule):
                     )
 
                 x_0 = previous_image
-                decoded = self.VAE.decode(x_0)
+                decoded = self.vae.decode(x_0)
                 dataset.extend(decoded.cpu().numpy())
 
         dataset = np.array(dataset)
@@ -593,7 +593,7 @@ class Ablation_LDM(pl.LightningModule):
                     )
 
                 x_0 = previous_image
-                decoded = self.VAE.decode(x_0)
+                decoded = self.vae.decode(x_0)
                 dataset.extend(decoded.cpu().numpy())
 
         dataset = np.array(dataset)
@@ -643,7 +643,7 @@ class Ablation_LDM(pl.LightningModule):
             self.logger.experiment.add_image(
                 "Latent_Generated_Images", x_0_grid, self.global_step
             )
-            x_0_decoded = self.VAE.decode(x_0)
+            x_0_decoded = self.vae.decode(x_0)
             grid = torchvision.utils.make_grid(x_0_decoded)
             self.logger.experiment.add_image("Generated_Images", grid, self.global_step)
 

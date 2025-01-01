@@ -91,11 +91,13 @@ def clamp_output(tensor: torch.Tensor, threshold):
 dataset = np.expand_dims(np.load("../Files/TPV_dataset.npy"), 1)
 normalizedDataset = (dataset - np.min(dataset)) / (np.max(dataset) - np.min(dataset))
 
+
+normalizedDataset = np.multiply(normalizedDataset, 2) - 1
+
 normalizedDataset = normalizedDataset.astype(np.float32)
 
 dataset = torch.from_numpy(normalizedDataset)
 
-dataset = clamp_output(dataset, 0.5)
 
 labels = torch.load("../Files/FOM_labels_new.pt")
 
