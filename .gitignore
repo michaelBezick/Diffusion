@@ -7,3 +7,4 @@ Test_Files
 image_grid.png
 Comparison_Models/logs
 Model_Scores/*.npy
+events.out*
