@@ -21,7 +21,7 @@ ldm = (
     Ablation_LDM.load_from_checkpoint(
         checkpoint_path_LDM,
         DDPM=ddpm,
-        VAE=vae,
+        vae=vae,
         in_channels=1,
         batch_size=batch_size,
         num_steps=1000,
