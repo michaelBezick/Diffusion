@@ -549,7 +549,7 @@ class Ablation_LDM(pl.LightningModule):
         dataset = np.array(dataset)
         return dataset
 
-    def create_dataset(self, num_samples, FOM_values):
+    def create_dataset(self, num_samples):
         dataset = []
         for i in tqdm(range(num_samples // self.batch_size)):
             with torch.no_grad():
@@ -573,7 +573,7 @@ class Ablation_LDM(pl.LightningModule):
 
                     timeStep = torch.tensor(t).to(self.device)
                     timeStep = timeStep.repeat(self.batch_size)
-                    epsilon_theta = self.DDPM(previous_image, FOM_values, timeStep)
+                    epsilon_theta = self.DDPM(previous_image, timeStep)
 
                     # algorithm 2 from Ho et al., using posterior variance_t = beta_t
                     epsilon_theta = torch.mul(
