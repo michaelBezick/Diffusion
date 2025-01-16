@@ -573,7 +573,7 @@ class Ablation_LDM(pl.LightningModule):
 
                     timeStep = torch.tensor(t).to(self.device)
                     timeStep = timeStep.repeat(self.batch_size)
-                    epsilon_theta = self.DDPM(previous_image, timeStep)
+                    epsilon_theta = self.DDPM(previous_image, 0, timeStep)
 
                     # algorithm 2 from Ho et al., using posterior variance_t = beta_t
                     epsilon_theta = torch.mul(
